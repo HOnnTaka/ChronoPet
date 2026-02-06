@@ -1,0 +1,249 @@
+@import url('https://fonts.googleapis.com/css2?family=Segoe+UI+Variable:wght@400;600&display=swap');
+
+:root {
+  --text-primary: #1a1a1a;
+  --text-secondary: #5d5d5d;
+  --accent: #0078d4;
+  --accent-text: #ffffff;
+  --bg-active: color-mix(in srgb, rgba(245, 245, 245, 0.96), var(--accent) 13%);
+  --bg-inactive: #f3f3f3;
+  --card-bg: rgba(255, 255, 255, 0.6);
+  --border-color: rgba(0, 0, 0, 0.08);
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --input-bg: rgba(255, 255, 255, 0.8);
+  --win-border: rgba(0, 0, 0, 0.2);
+  --pet-border: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0a0;
+    --accent: #0078d4;
+    --bg-active: color-mix(in srgb, rgba(32, 32, 32, 0.96), var(--accent) 13%);
+    --bg-inactive: #202020;
+    --card-bg: rgba(49, 49, 49, 0.4);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    --input-bg: rgba(60, 60, 60, 0.8);
+    --win-border: rgba(255, 255, 255, 0.15);
+    --pet-border: rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* 移除数字输入框箭头 */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  color: var(--text-primary);
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+}
+
+#root {
+  height: 100vh;
+  width: 100vw;
+}
+
+.win11-card {
+  background: var(--card-bg);
+  /* 移除这里的 backdrop-filter 避免嵌套冲突 */
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.win-container {
+  height: 100vh;
+  width: 100vw;
+  border: 1px solid var(--win-border);
+  background: var(--bg-active);
+  backdrop-filter: blur(50px) saturate(180%);
+  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+  transition: all 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+  box-shadow: 0 0 0 1px inset rgba(255, 255, 255, 0.1); /* 模拟 Win11 内部反光边 */
+}
+
+.win-container.inactive {
+  background: var(--bg-inactive) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+
+input, textarea, select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.15);
+}
+
+input[type="date"] {
+  color-scheme: light dark;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  backdrop-filter: blur(10px);
+}
+
+.btn:hover {
+  background: var(--border-color);
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: transparent;
+}
+
+.btn.primary:hover {
+  filter: brightness(1.1);
+  background: var(--accent);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+::selection {
+  background: var(--accent);
+  color: white;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* 动画 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.win11-card {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.glass-dialog {
+  background: color-mix(in srgb, var(--bg-inactive) 75%, transparent);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  color: var(--text-primary);
+  animation: fadeIn 0.15s ease-out;
+}
+
+.glass-overlay {
+  background: rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
