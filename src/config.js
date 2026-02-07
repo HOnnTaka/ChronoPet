@@ -7,7 +7,7 @@ export const APP_CONFIG = {
     { name: "休息", color: "#10b981" },
   ],
   DEFAULT_IMAGE_MODEL: "black-forest-labs/FLUX.1-dev",
-  DEFAULT_CHAT_MODEL: "moonshotai/Kimi-K2.5",
+  DEFAULT_CHAT_MODEL: "Qwen/Qwen3-VL-235B-A22B-Instruct",
   BUILTIN_MODELS: ["moonshotai/Kimi-K2.5", "Qwen/Qwen3-VL-235B-A22B-Instruct"],
   THEME_COLORS: [
     "#6366f1", // Indigo
