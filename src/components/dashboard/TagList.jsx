@@ -45,10 +45,10 @@ const TagList = ({ tags, onEdit, onDelete, settings }) => {
     if (tag.petIcon) return tag.petIcon;
 
     // Fallback for default tags if not overridden
-    if (tag.name === "工作") return "icon_work.png"; // relative to public?
-    if (tag.name === "学习") return "icon_study.png";
-    if (tag.name === "休息") return "icon_rest.png";
-    if (tag.name === "摸鱼") return "icon_moyu.png";
+    if (tag.name === "工作") return "/icon_work.png";
+    if (tag.name === "学习") return "/icon_study.png";
+    if (tag.name === "休息") return "/icon_rest.png";
+    if (tag.name === "摸鱼") return "/icon_moyu.png";
 
     return "icon_moyu.png"; // Ultimate fallback
   };
@@ -63,10 +63,11 @@ const TagList = ({ tags, onEdit, onDelete, settings }) => {
           color: "var(--text-secondary)",
           fontSize: "0.8rem",
           fontWeight: 600,
+          whiteSpace: "nowrap", // Prevent header wrapping
         }}
       >
-        <div style={{ flex: 1 }}>标签信息</div>
-        <div style={{ flex: 1 }}>对应桌宠外观</div>
+        <div style={{ flex: 1, minWidth: "100px" }}>标签信息</div>
+        <div style={{ flex: 1, minWidth: "100px" }}>对应桌宠外观</div>
         <div style={{ width: 100, textAlign: "right" }}>操作</div>
       </div>
 
@@ -87,7 +88,16 @@ const TagList = ({ tags, onEdit, onDelete, settings }) => {
             }}
           >
             {/* Tag Info */}
-            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 12 }}>
+            <div
+              style={{
+                flex: 1,
+                minWidth: "100px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                whiteSpace: "nowrap",
+              }}
+            >
               <div
                 style={{
                   width: 36,
@@ -120,7 +130,16 @@ const TagList = ({ tags, onEdit, onDelete, settings }) => {
             </div>
 
             {/* Pet Appearance Preview */}
-            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 10 }}>
+            <div
+              style={{
+                flex: 1,
+                minWidth: "100px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                whiteSpace: "nowrap",
+              }}
+            >
               <div
                 style={{
                   width: 48,

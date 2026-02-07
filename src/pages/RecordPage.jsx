@@ -124,7 +124,6 @@ export default function RecordPage() {
   }, [pinned]);
   const [aiLoading, setAiLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState([]);
-  const [availableTags] = useState(["摸鱼", "休息", "学习", "工作"]);
 
   const [alertMsg, setAlertMsg] = useState(null);
   const [aiStatus, setAiStatus] = useState("idle"); // 'idle' | 'loading' | 'success' | 'error'
@@ -143,21 +142,6 @@ export default function RecordPage() {
       window.removeEventListener("blur", onBlur);
     };
   }, []);
-
-  // Auto-resize window processing
-  useEffect(() => {
-    if (window.electronAPI && containerRef.current) {
-      // Wait for animation/render
-      setTimeout(() => {
-        // Using scrollHeight of the root container
-        let h = containerRef.current.scrollHeight;
-        // Ensure min height
-        if (h < 400) h = 400;
-        // Send request
-        window.electronAPI.send("resize-input-window", { height: h });
-      }, 200);
-    }
-  }, [isPomodoro, duration, screenshots]);
 
   const settingsRef = useRef(settings);
   useEffect(() => {
@@ -545,24 +529,32 @@ export default function RecordPage() {
         />
 
         <div style={{ marginBottom: "12px", display: "flex", flexWrap: "wrap", gap: "6px" }} className="no-drag">
-          {availableTags.map((tag) => (
+          {(settings.tags && settings.tags.length > 0 ?
+            settings.tags
+          : [
+              { name: "工作", color: "#6366f1" },
+              { name: "学习", color: "#a855f7" },
+              { name: "摸鱼", color: "#f43f5e" },
+              { name: "休息", color: "#10b981" },
+            ]
+          ).map((tag) => (
             <span
-              key={tag}
-              onClick={() => toggleTag(tag)}
+              key={tag.name}
+              onClick={() => toggleTag(tag.name)}
               style={{
                 fontSize: "0.75rem",
                 padding: "2px 8px",
                 borderRadius: "12px",
-                background: selectedTags.includes(tag) ? accent : "rgba(128,128,128,0.1)",
-                color: selectedTags.includes(tag) ? "#fff" : "var(--text-secondary)",
+                background: selectedTags.includes(tag.name) ? tag.color : "rgba(128,128,128,0.1)",
+                color: selectedTags.includes(tag.name) ? "#fff" : "var(--text-secondary)",
                 cursor: "pointer",
                 transition: "all 0.2s",
                 userSelect: "none",
                 border: "1px solid transparent",
-                borderColor: selectedTags.includes(tag) ? "transparent" : "var(--border-color)",
+                borderColor: selectedTags.includes(tag.name) ? "transparent" : "var(--border-color)",
               }}
             >
-              {tag}
+              {tag.name}
             </span>
           ))}
 
@@ -637,11 +629,12 @@ export default function RecordPage() {
                 border: "1px solid var(--border-color)",
                 borderRadius: "8px",
                 padding: "12px",
+                paddingBottom: "0",
                 animation: "slideDown 0.2s ease-out",
               }}
             >
               <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                {[10, 25, 45, 60].map((m) => (
+                {[10, 25, 30, 60].map((m) => (
                   <button
                     key={m}
                     onClick={() => setDuration(m)}
@@ -664,7 +657,7 @@ export default function RecordPage() {
                 ))}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <Clock size={16} style={{ color: "var(--text-secondary)" }} />
+                <Clock size={16} style={{ color: "var(--text-secondary)", marginBottom: "10px" }} />
                 <input
                   type="range"
                   min="1"
@@ -673,17 +666,29 @@ export default function RecordPage() {
                   onChange={(e) => setDuration(parseInt(e.target.value))}
                   style={{ flex: 1, height: 4, accentColor: accent, cursor: "pointer" }}
                 />
-                <span
+                <input
+                  type="number"
+                  min="1"
+                  value={duration}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val)) setDuration(val);
+                  }}
                   style={{
-                    width: 36,
-                    textAlign: "right",
+                    width: 50,
+                    textAlign: "center",
                     fontSize: "0.9rem",
                     fontVariantNumeric: "tabular-nums",
                     fontWeight: 600,
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "4px",
+                    background: "var(--bg-secondary)",
+                    color: "var(--text-primary)",
+                    padding: "2px 0px",
+                    marginRight: -5,
                   }}
-                >
-                  {duration}m
-                </span>
+                />
+                <span style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "5px" }}>m</span>
               </div>
             </div>
           )}

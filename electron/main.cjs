@@ -205,7 +205,7 @@ function createDashboardWindow() {
         backgroundColor: '#00000001',
         backgroundMaterial: 'acrylic',
         vibrancy: 'under-window',
-        minWidth: 420,
+        minWidth: 560,
         minHeight: 500,
         webPreferences: {
             preload: path.join(__dirname, 'preload.cjs'),
@@ -801,7 +801,6 @@ ipcMain.on('ai-chat', async (event, data) => {
     const { messages, apiKey, model } = data;
     const useModel = model || 'moonshotai/Kimi-K2.5';
     
-    // Check API Key
     const isBuiltinModel = BUILTIN_MODELS.includes(useModel);
     const useApiKey = isBuiltinModel ? BUILTIN_API_KEY : apiKey;
     
@@ -813,35 +812,60 @@ ipcMain.on('ai-chat', async (event, data) => {
     }
 
     try {
-        console.log('[AI Chat] Request Model:', useModel);
+        const fetch = (await import('node-fetch')).default;
+        console.log('[AI Chat] Stream Request Model:', useModel);
         
         const response = await fetch('https://api-inference.modelscope.cn/v1/chat/completions', {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${useApiKey}`
+                'Authorization': `Bearer ${useApiKey}`,
+                'Accept': 'text/event-stream'
             },
             body: JSON.stringify({
                 model: useModel,
                 messages: messages,
-                max_tokens: 1000 // Allow longer response for chat
+                stream: true, // Enable Streaming
+                max_tokens: 1000
             })
         });
-        
-        const result = await response.json();
-        
+
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${result.error?.message || result.message || JSON.stringify(result)}`);
+            const errText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errText}`);
+        }
+
+        if (!response.body) throw new Error('No response body');
+
+        // Initial empty message to confirm connection
+        event.reply('ai-chat-stream-v2', { content: '', start: true });
+
+        // Stream reader
+        for await (const chunk of response.body) {
+            const lines = chunk.toString().split('\n');
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('data: ')) {
+                    const jsonStr = trimmed.substring(6);
+                    if (jsonStr === '[DONE]') continue;
+                    try {
+                        const json = JSON.parse(jsonStr);
+                        const content = json.choices?.[0]?.delta?.content;
+                        if (content) {
+                            event.reply('ai-chat-stream-v2', { content });
+                        }
+                    } catch (e) {
+                        // ignore incomplete JSON chunks
+                    }
+                }
+            }
         }
         
-        if (result.error) {
-            throw new Error(result.error.message || JSON.stringify(result.error));
-        }
-        
-        const replyContent = result.choices?.[0]?.message?.content || '（无回复）';
-        event.reply('ai-chat-response', { success: true, reply: replyContent });
+        event.reply('ai-chat-end', { success: true });
+
     } catch (error) {
         console.error('[AI Chat] Error:', error);
         event.reply('ai-chat-response', { success: false, error: 'Chat Error: ' + error.message });
+        event.reply('ai-chat-end', { success: false });
     }
 });

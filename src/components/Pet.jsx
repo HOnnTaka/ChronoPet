@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Plus, Clock, List, Layout, Sparkles, Target, Coffee, Brain, X, Edit3, Loader2 } from "lucide-react";
+import { Plus, Clock, List, Layout, Sparkles, Target, Coffee, Brain, X, Edit3, Loader2, Send } from "lucide-react";
 
 const Pet = () => {
   const [isDragging, setIsDragging] = useState(false);
@@ -55,14 +55,22 @@ const Pet = () => {
         if (settings?.tags && Array.isArray(settings.tags) && settings.tags.length > 0) {
           const mappedTags = settings.tags.map((t) => {
             let IconComp = Target;
-            if (t.icon === "Brain") IconComp = Brain;
-            else if (t.icon === "Coffee") IconComp = Coffee;
-            else if (t.icon === "Clock") IconComp = Clock;
-            else if (t.icon === "Sparkles") IconComp = Sparkles;
+            const iconName = t.iconValue || t.icon;
+            if (iconName === "Brain") IconComp = Brain;
+            else if (iconName === "Coffee") IconComp = Coffee;
+            else if (iconName === "Clock") IconComp = Clock;
+            else if (iconName === "Sparkles") IconComp = Sparkles;
+            else if (iconName === "List") IconComp = List;
+            else if (iconName === "Layout") IconComp = Layout;
+            else if (iconName === "Send") IconComp = Send;
 
             const iconElement =
               t.iconType === "image" ?
-                <img src={t.iconValue} style={{ width: 16, height: 16, borderRadius: 4, objectFit: "cover" }} />
+                <img
+                  src={t.iconValue}
+                  style={{ width: 16, height: 16, borderRadius: 4, objectFit: "cover" }}
+                  onError={(e) => (e.target.style.display = "none")}
+                />
               : <IconComp size={16} />;
 
             return {
@@ -312,7 +320,7 @@ const Pet = () => {
     if (ignoreTimeoutRef.current) clearTimeout(ignoreTimeoutRef.current);
     ignoreTimeoutRef.current = setTimeout(() => {
       setIgnoreMouse(true);
-    }, 150); // 150ms grace period to cross gaps
+    }, 300); // Increased grace period to 300ms to prevent flickering during gap traversal
   };
 
   return (
@@ -350,12 +358,15 @@ const Pet = () => {
               bottom: "100px",
               ...(menuPosition === "left" ? { left: "-20px" } : { right: "-20px" }),
               width: "260px",
-              background: "rgba(28, 28, 28, 0.95)", // Deep dark
-              backdropFilter: "blur(30px) saturate(180%)",
-              WebkitBackdropFilter: "blur(30px) saturate(180%)",
+              // 注意：在 Electron 透明窗口中，backdrop-filter 无法模糊窗口背后的 OS 桌面，只能模糊窗口内的元素。
+              // 若要模糊桌面背景，需要开启窗口的 acrylic 材质，但这会导致整个 600x800 窗口变成矩形磨砂块，破坏异形效果。
+              // 因此此处采用高不透明度 + 渐变 + 内阴影来模拟质感。
+              background: "rgba(20,20,20,0.99)",
+              // backdropFilter: "blur(30px)", // 无效，留着也没用
               borderRadius: "18px",
               padding: "16px",
-              boxShadow: "0 20px 50px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)",
+              boxShadow:
+                "0 20px 50px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.1)",
               display: "flex",
               flexDirection: "column",
               gap: "12px",
@@ -526,7 +537,7 @@ const Pet = () => {
                 ...(menuPosition === "left" ? { left: "48px" } : { right: "48px" }),
                 width: "14px",
                 height: "14px",
-                background: "rgba(28, 28, 28, 0.95)", // Match bubble bg
+                background: "rgba(28, 28, 28, 0.60)", // Match bubble bg
                 transform: "rotate(45deg)",
                 boxShadow: "2px 2px 4px rgba(0,0,0,0.4)",
                 zIndex: -1,

@@ -9,14 +9,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'request-ai-summary', 'resize-input-window', 'open-preview', 
       'set-pinned', 'set-ignore-mouse', 'resize-pet-window', 
       'quick-record-now', 'open-detailed-record', 'update-record-parts',
-      'delete-record', 'update-last-record-desc', 'open-settings-tags'
+      'delete-record', 'update-last-record-desc', 'open-settings-tags',
+      'ai-chat'
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }
   },
   receive: (channel, func) => {
-    let validChannels = ['summary-response', 'screen-captured', 'records-updated', 'ai-summary-response', 'switch-tab', 'scroll-to-tags', 'settings-updated', 'execute-quick-record'];
+    let validChannels = [
+      'summary-response', 'screen-captured', 'records-updated', 
+      'ai-summary-response', 'switch-tab', 'scroll-to-tags', 
+      'settings-updated', 'execute-quick-record',
+      'ai-chat-stream-v2', 'ai-chat-response', 'ai-chat-end',
+      // Legacy channels kept for safety but v2 preferred for streaming
+      'ai-chat-stream'
+    ];
     if (validChannels.includes(channel)) {
       const subscription = (event, ...args) => func(...args);
       ipcRenderer.on(channel, subscription);

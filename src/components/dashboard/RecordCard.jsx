@@ -1,336 +1,247 @@
-import React, { useState, useEffect } from "react";
-import { Edit2, Trash2, Sparkles, Loader2, Save, X, Clock, Check } from "lucide-react";
+import React, { useState } from "react";
+import { Edit2, Trash2, Sparkles, Loader2, Image as ImageIcon } from "lucide-react";
 import InlineConfirm from "./InlineConfirm";
 
 /**
  * RecordCard Component
- * Handles display and inline editing of a single record.
- *
- * Props:
- * - record: The record object
- * - accent: Accent color
- * - onDelete: Callback(record)
- * - onUpdate: Callback(updatedRecord)
- * - onAiSummary: Callback(record)
- * - loadingAi: boolean
+ * Balanced layout: Spacious but efficient. Uses right side for actions/media.
  */
-const RecordCard = ({ record, accent, onDelete, onUpdate, onAiSummary, loadingAi }) => {
-  const [isEditing, setIsEditing] = useState(false);
+const RecordCard = ({ record, accent, onDelete, onEdit, onAiSummary, loadingAi }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  // Edit State
-  const [task, setTask] = useState(record.task);
-  const [desc, setDesc] = useState(record.desc || "");
-  const [duration, setDuration] = useState(record.duration || 1);
-  const [tags, setTags] = useState(record.tags || []);
-
-  // Reset state when record or edit mode changes
-  useEffect(() => {
-    if (isEditing) {
-      setTask(record.task);
-      setDesc(record.desc || "");
-      setDuration(record.duration || 1);
-      setTags(record.tags || []);
-    }
-  }, [isEditing, record]);
-
-  const handleSave = () => {
-    const updated = {
-      ...record,
-      task,
-      desc,
-      duration: parseInt(duration),
-      tags,
-    };
-    onUpdate(updated);
-    setIsEditing(false);
-  };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-  };
 
   return (
     <div
-      className="win11-card"
+      className="win11-card record-card"
       style={{
         flex: 1,
-        padding: "16px",
+        padding: "12px 18px", // Increased padding for breathing room
         background: "var(--card-bg)",
         animation: "fadeIn 0.3s ease-out",
         position: "relative",
         marginBottom: 0,
+        border: "1px solid var(--border-color)",
+        transition: "all 0.2s cubic-bezier(0.1, 0.9, 0.2, 1)",
+        display: "flex",
+        gap: 16, // Consistent gap between left and right
+        userSelect: "text", // Enable text selection
+        cursor: "auto",
       }}
     >
-      {/* CARD HEADER: Task & Duration or Edit Controls */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "start",
-          marginBottom: "8px",
-        }}
-      >
-        <div style={{ flex: 1 }}>
-          {isEditing ?
-            <div style={{ animation: "fadeIn 0.2s" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                {/* Compact Task Input */}
-                <input
-                  value={task}
-                  onChange={(e) => setTask(e.target.value)}
-                  className="modern-input"
-                  autoFocus
-                  style={{
-                    flex: 1,
-                    fontSize: "1.05rem",
-                    fontWeight: 600,
-                    padding: "4px 8px",
-                    borderRadius: 4,
-                    border: "1px solid var(--border-color)",
-                    background: "var(--input-bg)",
-                    color: "var(--text-primary)",
-                  }}
-                />
-                {/* Compact Duration Control */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    background: "var(--bg-secondary)",
-                    padding: "2px 6px",
-                    borderRadius: 4,
-                  }}
-                >
-                  <Clock size={14} style={{ color: "var(--text-secondary)" }} />
-                  <input
-                    type="number"
-                    min="1"
-                    max="999"
-                    value={duration}
-                    onChange={(e) => setDuration(parseInt(e.target.value) || 1)}
-                    style={{
-                      width: 40,
-                      border: "none",
-                      background: "transparent",
-                      fontSize: "0.9rem",
-                      textAlign: "center",
-                      fontWeight: 600,
-                    }}
-                  />
-                  <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>m</span>
-                </div>
-              </div>
-            </div>
-          : <>
-              <div
-                style={{
-                  fontWeight: 600,
-                  fontSize: "1.05rem",
-                  cursor: "pointer",
-                  color: "var(--text-primary)",
-                }}
-                onClick={() => setIsEditing(true)}
-              >
-                {record.task}
-              </div>
-              {/* Tags Display */}
-              {record.tags && record.tags.length > 0 && (
-                <div style={{ display: "flex", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
-                  {record.tags.map((tag, idx) => (
-                    <span
-                      key={idx}
-                      style={{
-                        fontSize: "0.7rem",
-                        padding: "2px 10px",
-                        borderRadius: "4px",
-                        background: accent,
-                        color: "white",
-                        fontWeight: 600,
-                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                      }}
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </>
-          }
-        </div>
+      <style>{`
+        .record-card:hover {
+          background: color-mix(in srgb, var(--card-bg), var(--accent) 2%);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+          border-color: color-mix(in srgb, var(--border-color), var(--accent) 20%);
+        }
+        .action-btn {
+          opacity: 0.6;
+          transition: all 0.2s;
+          padding: 4px;
+          border-radius: 4px;
+          color: var(--text-secondary);
+        }
+        .record-card:hover .action-btn {
+          opacity: 1;
+        }
+        .action-btn:hover {
+          background: var(--bg-secondary);
+          color: var(--text-primary);
+        }
+        .action-btn.delete:hover {
+          background: rgba(209, 52, 56, 0.1);
+          color: #d13438;
+        }
+        .action-btn.ai {
+          color: #7c3aed;
+          opacity: 0.8;
+        }
+        .action-btn.ai:hover {
+          background: rgba(124, 58, 237, 0.1);
+        }
+      `}</style>
 
-        {/* Action Buttons */}
-        <div style={{ display: "flex", gap: "8px", marginLeft: "12px", alignItems: "center", position: "relative" }}>
-          {/* Delete Confirmation Popup */}
-          {showDeleteConfirm && (
-            <InlineConfirm
-              onConfirm={() => {
-                onDelete(record);
-                setShowDeleteConfirm(false);
-              }}
-              onCancel={() => setShowDeleteConfirm(false)}
-            />
-          )}
-
-          {isEditing ?
-            <>
-              <button
-                onClick={handleSave}
-                style={{
-                  background: accent,
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  padding: "6px",
-                  color: "white",
-                }}
-                title="Save"
-              >
-                <Check size={16} />
-              </button>
-              <button
-                onClick={handleCancel}
-                style={{
-                  background: "transparent",
-                  border: "1px solid var(--border-color)",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  padding: "6px",
-                  color: "var(--text-primary)",
-                }}
-                title="Cancel"
-              >
-                <X size={16} />
-              </button>
-            </>
-          : <>
-              {record.screenshots && record.screenshots.length > 0 && (
-                <button
-                  onClick={() => onAiSummary(record)}
-                  disabled={loadingAi}
-                  title="AI 总结此事件"
-                  style={{
-                    background: "rgba(124, 58, 237, 0.1)",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "4px 8px",
-                    borderRadius: "6px",
-                    color: "#7c3aed",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    transition: "all 0.2s",
-                    opacity: loadingAi ? 0.7 : 1,
-                  }}
-                >
-                  {loadingAi ?
-                    <Loader2 size={12} className="spin" />
-                  : <Sparkles size={12} />}
-                  <span style={{ fontSize: "0.75rem", fontWeight: 600 }}>总结</span>
-                </button>
-              )}
-              <button
-                onClick={() => setIsEditing(true)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  opacity: 0.6,
-                  padding: "4px",
-                  color: "var(--text-primary)",
-                }}
-              >
-                <Edit2 size={14} />
-              </button>
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  opacity: 0.6,
-                  padding: "4px",
-                  color: "#d13438",
-                }}
-              >
-                <Trash2 size={14} />
-              </button>
-            </>
-          }
-        </div>
-      </div>
-
-      {/* DESCRIPTION */}
-      {isEditing ?
-        <textarea
-          value={desc}
-          onChange={(e) => setDesc(e.target.value)}
-          className="modern-input"
-          rows={3}
+      {/* LEFT CONTENT: Information */}
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+        {/* Title */}
+        <div
           style={{
-            width: "100%",
-            padding: "8px",
-            borderRadius: 6,
-            border: "1px solid var(--border-color)",
-            background: "var(--input-bg)",
+            fontWeight: 600,
+            fontSize: "1rem",
+            cursor: "pointer",
             color: "var(--text-primary)",
-            fontSize: "0.9rem",
-            marginBottom: "12px",
-            resize: "vertical",
-            lineHeight: 1.5,
-            fontFamily: "inherit",
+            lineHeight: 1.3,
           }}
-          placeholder="Add description..."
-        />
-      : record.desc && (
+          onClick={() => onEdit(record)}
+        >
+          {record.task}
+        </div>
+
+        {/* Description */}
+        {record.desc && (
           <div
             style={{
-              fontSize: "0.9rem",
+              fontSize: "0.85rem",
               color: "var(--text-secondary)",
-              marginBottom: "12px",
               whiteSpace: "pre-wrap",
               cursor: "pointer",
-              lineHeight: 1.5,
+              lineHeight: 1.5, // Better readability
             }}
-            onClick={() => setIsEditing(true)}
+            onClick={() => onEdit(record)}
           >
             {record.desc}
           </div>
-        )
-      }
+        )}
 
-      {/* SCREENSHOTS */}
-      {record.screenshots && record.screenshots.length > 0 && (
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {record.screenshots.map((img, idx) => (
+        {/* Tags */}
+        {record.tags && record.tags.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: record.desc ? 2 : 0 }}>
+            {record.tags.map((tag, idx) => (
+              <span
+                key={idx}
+                style={{
+                  fontSize: "0.7rem",
+                  padding: "2px 8px",
+                  borderRadius: "12px",
+                  background: "var(--bg-secondary)",
+                  color: "var(--text-secondary)",
+                  border: "1px solid var(--border-color)",
+                  fontWeight: 500,
+                  transition: "all 0.2s",
+                }}
+              >
+                <span style={{ color: accent, marginRight: 4 }}>#</span>
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* RIGHT CONTENT: Interaction & Media */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          justifyContent: "space-between", // Spread top/bottom
+          gap: 8,
+          minWidth: "80px", // Reserve some width
+        }}
+      >
+        {/* Actions Row */}
+        <div style={{ display: "flex", gap: 2, position: "relative" }}>
+          {showDeleteConfirm && (
             <div
-              key={idx}
               style={{
-                border: "1px solid var(--border-color)",
-                borderRadius: "6px",
-                overflow: "hidden",
-                width: "120px",
-                height: "80px",
-                background: "rgba(0,0,0,0.05)",
+                position: "absolute",
+                top: "100%",
+                right: 0,
+                zIndex: 10,
+                marginTop: 8,
+                boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+                minWidth: "160px",
               }}
             >
-              <img
-                src={img}
-                alt={`截图 ${idx + 1}`}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  display: "block",
-                  cursor: "pointer",
+              <InlineConfirm
+                onConfirm={() => {
+                  onDelete(record);
+                  setShowDeleteConfirm(false);
                 }}
-                onClick={() => window.electronAPI && window.electronAPI.send("open-preview", img)}
+                onCancel={() => setShowDeleteConfirm(false)}
               />
             </div>
-          ))}
+          )}
+
+          {record.screenshots && record.screenshots.length > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAiSummary(record);
+              }}
+              disabled={loadingAi}
+              title="AI 总结"
+              className="action-btn ai"
+              style={{ border: "none", background: "transparent", cursor: "pointer" }}
+            >
+              {loadingAi ?
+                <Loader2 size={15} className="spin" />
+              : <Sparkles size={15} />}
+            </button>
+          )}
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(record);
+            }}
+            className="action-btn"
+            title="编辑"
+            style={{ border: "none", background: "transparent", cursor: "pointer" }}
+          >
+            <Edit2 size={15} />
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDeleteConfirm(true);
+            }}
+            className="action-btn delete"
+            title="删除"
+            style={{ border: "none", background: "transparent", cursor: "pointer" }}
+          >
+            <Trash2 size={15} />
+          </button>
         </div>
-      )}
+
+        {/* Screenshots Stack (Bottom Right) */}
+        {record.screenshots && record.screenshots.length > 0 && (
+          <div style={{ display: "flex", gap: "6px" }}>
+            {record.screenshots.slice(0, 2).map((img, idx) => (
+              <div
+                key={idx}
+                className="group"
+                style={{
+                  borderRadius: "6px",
+                  overflow: "hidden",
+                  width: "56px",
+                  height: "36px",
+                  background: "var(--bg-secondary)",
+                  border: "1px solid var(--border-color)",
+                  position: "relative",
+                  cursor: "pointer",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                }}
+                onClick={() => window.electronAPI && window.electronAPI.send("open-preview", img)}
+              >
+                <img
+                  src={img}
+                  alt="截图"
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                />
+                {idx === 1 && record.screenshots.length > 2 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "rgba(0,0,0,0.6)",
+                      color: "white",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "0.7rem",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    +{record.screenshots.length - 2}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

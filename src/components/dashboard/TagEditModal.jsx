@@ -1,21 +1,9 @@
 import React, { useRef, useState } from "react";
-import {
-  Image as ImageIcon,
-  Upload,
-  Loader2,
-  Sparkles,
-  Target,
-  Brain,
-  Coffee,
-  Clock,
-  List,
-  Layout,
-  Send,
-} from "lucide-react";
+import { Image as ImageIcon, Upload, Sparkles, Target, Brain, Coffee, Clock, List, Layout, Send } from "lucide-react";
 import InputWithClear from "./InputWithClear";
 import { APP_CONFIG } from "../../config";
 
-const TagEditModal = ({ editingTag, setEditingTag, onSave, onGenerateIcon, isGeneratingIcon }) => {
+const TagEditModal = ({ editingTag, setEditingTag, onSave }) => {
   const tagIconFileRef = useRef(null);
   const [tab, setTab] = useState("basic"); // basic | appearance
 
@@ -44,7 +32,7 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, onGenerateIcon, isGen
         className="win11-card"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: 380, // Slightly smaller width
+          width: 380,
           maxWidth: "100%",
           display: "flex",
           flexDirection: "column",
@@ -52,7 +40,7 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, onGenerateIcon, isGen
           overflow: "hidden",
           maxHeight: "85vh",
           boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
-          borderRadius: 12, // "Not too big"
+          borderRadius: 12,
           backdropFilter: "blur(20px)",
           backgroundColor: "color-mix(in srgb, var(--card-bg), transparent 15%)",
           backgroundImage:
@@ -196,7 +184,19 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, onGenerateIcon, isGen
                     </button>
                     <button
                       type="button"
-                      onClick={() => setEditingTag({ ...editingTag, iconType: "image" })}
+                      onClick={() => {
+                        // FIX: Check if current iconValue is a valid URL/DataURI before keeping it
+                        const isValidImage =
+                          editingTag.iconValue &&
+                          (editingTag.iconValue.startsWith("data:") ||
+                            editingTag.iconValue.startsWith("http") ||
+                            editingTag.iconValue.includes("/"));
+                        setEditingTag({
+                          ...editingTag,
+                          iconType: "image",
+                          iconValue: isValidImage ? editingTag.iconValue : "",
+                        });
+                      }}
                       style={{
                         padding: "4px 12px",
                         borderRadius: 4,
@@ -214,112 +214,132 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, onGenerateIcon, isGen
                   </div>
                 </div>
 
-                {editingTag.iconType !== "image" ?
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
-                    {APP_CONFIG.DEFAULT_ICONS.map((iconName) => {
-                      let C = Target;
-                      if (iconName === "Brain") C = Brain;
-                      if (iconName === "Coffee") C = Coffee;
-                      if (iconName === "Clock") C = Clock;
-                      if (iconName === "Sparkles") C = Sparkles;
-                      if (iconName === "List") C = List;
-                      if (iconName === "Layout") C = Layout;
-                      if (iconName === "Send") C = Send;
-                      const isSelected = editingTag.iconValue === iconName;
-                      return (
-                        <div
-                          key={iconName}
-                          onClick={() => setEditingTag({ ...editingTag, iconValue: iconName })}
-                          style={{
-                            aspectRatio: "1",
-                            borderRadius: 8,
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            background: isSelected ? `${editingTag.color}20` : "rgba(128,128,128,0.05)",
-                            color: isSelected ? editingTag.color : "var(--text-secondary)",
-                            border: isSelected ? `1px solid ${editingTag.color}` : "1px solid transparent",
-                            transition: "all 0.2s",
-                          }}
-                        >
-                          <C size={18} />
+                {/* Icon Content Container with Fixed Height and Transition */}
+                <div
+                  style={{
+                    height: 150,
+                    overflow: "hidden",
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                    position: "relative",
+                  }}
+                >
+                  {editingTag.iconType !== "image" ?
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(6, 1fr)",
+                        gap: 8,
+                        height: "100%",
+                        alignContent: "start",
+                        animation: "fadeIn 0.3s ease-out",
+                      }}
+                    >
+                      {APP_CONFIG.DEFAULT_ICONS.map((iconName) => {
+                        let C = Target;
+                        if (iconName === "Brain") C = Brain;
+                        if (iconName === "Coffee") C = Coffee;
+                        if (iconName === "Clock") C = Clock;
+                        if (iconName === "Sparkles") C = Sparkles;
+                        if (iconName === "List") C = List;
+                        if (iconName === "Layout") C = Layout;
+                        if (iconName === "Send") C = Send;
+                        const isSelected = editingTag.iconValue === iconName;
+                        return (
+                          <div
+                            key={iconName}
+                            onClick={() => setEditingTag({ ...editingTag, iconValue: iconName })}
+                            style={{
+                              aspectRatio: "1",
+                              borderRadius: 8,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              background: isSelected ? `${editingTag.color}20` : "rgba(128,128,128,0.05)",
+                              color: isSelected ? editingTag.color : "var(--text-secondary)",
+                              border: isSelected ? `1px solid ${editingTag.color}` : "1px solid transparent",
+                              transition: "all 0.2s",
+                            }}
+                          >
+                            <C size={18} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  : <div
+                      onClick={() => tagIconFileRef.current?.click()}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        border: "2px dashed var(--border-color)",
+                        borderRadius: 12,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        background: "var(--bg-secondary)",
+                        gap: 8,
+                        color: "var(--text-secondary)",
+                        transition: "all 0.2s",
+                        position: "relative",
+                        overflow: "hidden",
+                        animation: "fadeIn 0.3s ease-out",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = "var(--accent)";
+                        e.currentTarget.style.background = "var(--card-bg)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "var(--border-color)";
+                        e.currentTarget.style.background = "var(--bg-secondary)";
+                      }}
+                    >
+                      {editingTag.iconValue ?
+                        <div style={{ width: "100%", height: "100%", position: "relative" }}>
+                          <img
+                            src={editingTag.iconValue}
+                            style={{ width: "100%", height: "100%", objectFit: "contain", padding: 8 }}
+                          />
+                          <div
+                            style={{
+                              position: "absolute",
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              background: "rgba(0,0,0,0.6)",
+                              color: "white",
+                              fontSize: "0.75rem",
+                              padding: "4px",
+                              textAlign: "center",
+                              backdropFilter: "blur(4px)",
+                            }}
+                          >
+                            点击更换
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                : <div
-                    onClick={() => tagIconFileRef.current?.click()}
-                    style={{
-                      width: "100%",
-                      height: 100,
-                      border: "2px dashed var(--border-color)",
-                      borderRadius: 12,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      background: "var(--bg-secondary)",
-                      gap: 8,
-                      color: "var(--text-secondary)",
-                      transition: "all 0.2s",
-                      position: "relative",
-                      overflow: "hidden",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "var(--accent)";
-                      e.currentTarget.style.background = "var(--card-bg)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border-color)";
-                      e.currentTarget.style.background = "var(--bg-secondary)";
-                    }}
-                  >
-                    {editingTag.iconValue ?
-                      <div style={{ width: "100%", height: "100%", position: "relative" }}>
-                        <img
-                          src={editingTag.iconValue}
-                          style={{ width: "100%", height: "100%", objectFit: "contain", padding: 8 }}
-                        />
-                        <div
-                          style={{
-                            position: "absolute",
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            background: "rgba(0,0,0,0.6)",
-                            color: "white",
-                            fontSize: "0.75rem",
-                            padding: "4px",
-                            textAlign: "center",
-                            backdropFilter: "blur(4px)",
-                          }}
-                        >
-                          点击更换
-                        </div>
-                      </div>
-                    : <>
-                        <div
-                          style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: "50%",
-                            background: "var(--card-bg)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-                          }}
-                        >
-                          <Upload size={18} color="var(--accent)" />
-                        </div>
-                        <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>上传自定义图标</span>
-                        <span style={{ fontSize: "0.7rem", opacity: 0.7 }}>支持 PNG, JPG</span>
-                      </>
-                    }
-                  </div>
-                }
+                      : <>
+                          <div
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: "50%",
+                              background: "var(--card-bg)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                            }}
+                          >
+                            <Upload size={18} color="var(--accent)" />
+                          </div>
+                          <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>上传自定义图标</span>
+                          <span style={{ fontSize: "0.7rem", opacity: 0.7 }}>支持 PNG, JPG</span>
+                        </>
+                      }
+                    </div>
+                  }
+                </div>
                 <input
                   type="file"
                   ref={tagIconFileRef}
@@ -371,13 +391,13 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, onGenerateIcon, isGen
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         onError={(e) => {
                           e.target.style.display = "none";
-                          // Show fallback sibling or parent background
+                          // Show fallback
                           e.target.parentElement.style.backgroundImage = 'url("icon_moyu.png")';
                           e.target.parentElement.style.backgroundSize = "cover";
                         }}
                       />
                     : <img
-                        src="icon_base.png"
+                        src="icon_base.png" // Default fallback
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         onError={(e) => {
                           e.target.src = "icon_moyu.png";
@@ -386,7 +406,7 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, onGenerateIcon, isGen
                     }
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: "0.9rem", marginBottom: 4 }}>桌宠形象</div>
+                    <div style={{ fontWeight: 600, fontSize: "0.9rem", marginBottom: 4 }}>桌宠形象 (可选)</div>
                     <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", lineHeight: 1.4 }}>
                       标签激活时显示此形象
                     </div>
@@ -395,16 +415,16 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, onGenerateIcon, isGen
 
                 <div style={{ display: "flex", gap: 8 }}>
                   <label
-                    className="btn"
+                    className="btn primary"
                     style={{
                       flex: 1,
-                      padding: "6px 0",
-                      fontSize: "0.8rem",
+                      padding: "8px 0",
+                      fontSize: "0.9rem",
                       cursor: "pointer",
                       justifyContent: "center",
                     }}
                   >
-                    <Upload size={14} style={{ marginRight: 6 }} /> 上传
+                    <Upload size={16} style={{ marginRight: 8 }} /> 上传形象图片
                     <input
                       type="file"
                       accept="image/*"
@@ -419,45 +439,8 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, onGenerateIcon, isGen
                       }}
                     />
                   </label>
-                  <button
-                    className="btn"
-                    onClick={onGenerateIcon}
-                    disabled={isGeneratingIcon}
-                    style={{
-                      flex: 1,
-                      justifyContent: "center",
-                      fontSize: "0.8rem",
-                      background: "var(--accent)",
-                      color: "#fff",
-                      opacity: isGeneratingIcon ? 0.7 : 1,
-                      border: "none",
-                    }}
-                  >
-                    {isGeneratingIcon ?
-                      <Loader2 size={14} className="spin" />
-                    : <Sparkles size={14} style={{ marginRight: 6 }} />}
-                    AI 生成
-                  </button>
+                  {/* AI Generation button removed */}
                 </div>
-              </div>
-
-              <div style={{ marginTop: 16 }}>
-                <textarea
-                  placeholder="AI 生成提示词... (例如: 戴着墨镜的酷狗)"
-                  value={editingTag.aiPrompt || ""}
-                  onChange={(e) => setEditingTag({ ...editingTag, aiPrompt: e.target.value })}
-                  rows={3}
-                  style={{
-                    width: "100%",
-                    fontSize: "0.85rem",
-                    padding: 12,
-                    borderRadius: 8,
-                    border: "1px solid var(--border-color)",
-                    background: "var(--bg-secondary)",
-                    color: "var(--text-primary)",
-                    resize: "none",
-                  }}
-                />
               </div>
             </div>
           )}
@@ -483,12 +466,7 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, onGenerateIcon, isGen
             disabled={tab === "basic" && !editingTag.name?.trim()}
             onClick={
               tab === "basic" ?
-                () => {
-                  if (!editingTag.aiPrompt) {
-                    setEditingTag((prev) => ({ ...prev, aiPrompt: prev.name }));
-                  }
-                  setTab("appearance");
-                }
+                () => setTab("appearance") // Next button now just switches tab
               : onSave
             }
             style={{
