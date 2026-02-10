@@ -1119,7 +1119,7 @@ export default function DashboardPage() {
                             showCustomAlert("已经是最新版", `当前版本: v${res.currentVersion} 是最新的。`);
                           }
                         } else {
-                          showCustomAlert("检查更新失败", res.error);
+                          showCustomAlert("检查更新失败", res?.error || "未知错误");
                         }
                       }
                     } catch (err) {
@@ -1134,20 +1134,6 @@ export default function DashboardPage() {
                   <RefreshCw size={14} style={{ marginRight: 6 }} />
                   检查更新
                 </button>
-              </div>
-              <div style={{ marginTop: 16, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                开源地址:{" "}
-                <a
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (window.electronAPI)
-                      window.electronAPI.send("open-external", "https://github.com/HOnnTaka/ChronoPet");
-                  }}
-                  style={{ color: accent, textDecoration: "none" }}
-                >
-                  GitHub &rsaquo;
-                </a>
               </div>
             </div>
           </div>

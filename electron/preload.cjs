@@ -34,7 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
   invoke: (channel, data) => {
-    let validChannels = ['get-records', 'get-system-colors', 'get-settings', 'generate-icon', 'cleanup-screenshots', 'select-audio-file'];
+    let validChannels = ['get-records', 'get-system-colors', 'get-settings', 'generate-icon', 'cleanup-screenshots', 'select-audio-file', 'check-for-updates'];
     if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, data);
     }
