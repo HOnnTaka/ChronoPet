@@ -17,28 +17,35 @@ const InputWithClear = ({ value, onChange, placeholder, style, onClear, autoFocu
         background: "var(--bg-secondary)",
         color: "var(--text-primary)",
         ...style,
+        position: "relative",
       }}
     />
     {value && (
       <button
+        type="button"
         onClick={() => {
           onChange({ target: { value: "" } });
           if (onClear) onClear();
         }}
         style={{
           position: "absolute",
-          right: 8,
+          right: 6,
           top: "50%",
-          transform: "translateY(-50%)",
+          transform: "translateY(-75%)",
           background: "transparent",
           border: "none",
+          width: 24,
+          height: 24,
+          borderRadius: 4,
           color: "var(--text-secondary)",
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: 4,
+          transition: "background 0.2s",
         }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(128,128,128,0.1)")}
+        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
       >
         <X size={14} />
       </button>

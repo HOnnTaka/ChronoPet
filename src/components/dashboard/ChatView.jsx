@@ -67,7 +67,7 @@ export default function ChatView({
                 width: 36,
                 height: 36,
                 borderRadius: "50%",
-                background: msg.sender === "user" ? accent : "var(--bg-active)",
+                background: msg.sender === "user" ? "var(--accent)" : "var(--bg-active)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -77,7 +77,7 @@ export default function ChatView({
             >
               {msg.sender === "user" ?
                 <span style={{ color: "#fff", fontSize: "0.8rem", fontWeight: 600 }}>我</span>
-              : <Sparkles size={18} style={{ color: accent }} />}
+              : <Sparkles size={18} style={{ color: "var(--accent)" }} />}
             </div>
 
             {/* Bubble */}
@@ -93,7 +93,7 @@ export default function ChatView({
                 style={{
                   padding: "12px 16px",
                   borderRadius: "16px",
-                  background: msg.sender === "user" ? accent : "var(--bg-secondary)",
+                  background: msg.sender === "user" ? "var(--accent)" : "var(--bg-secondary)",
                   color: msg.sender === "user" ? "#fff" : "var(--text-primary)",
                   fontSize: "0.95rem",
                   lineHeight: 1.6,
@@ -220,7 +220,7 @@ export default function ChatView({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: inputMsg.trim() ? accent : "var(--border-color)",
+              background: inputMsg.trim() ? "var(--accent)" : "var(--border-color)",
               cursor: inputMsg.trim() ? "pointer" : "default",
               transition: "all 0.2s",
             }}

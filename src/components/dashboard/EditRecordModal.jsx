@@ -1,15 +1,15 @@
 import React, { useRef } from "react";
-import { X, Plus, Target, Brain, Coffee, Clock, Sparkles, List, Layout, Send } from "lucide-react";
+import { X, Plus, Minus, Tag, Target, Brain, Coffee, Clock, Sparkles, Save, Image as ImageIcon } from "lucide-react";
 import InputWithClear from "./InputWithClear";
 
 const defaultTags = [
-  { name: "工作", color: "#6366f1", iconType: "preset", iconValue: "Target" },
-  { name: "学习", color: "#a855f7", iconType: "preset", iconValue: "Brain" },
-  { name: "摸鱼", color: "#f43f5e", iconType: "preset", iconValue: "Coffee" },
-  { name: "休息", color: "#10b981", iconType: "preset", iconValue: "Clock" },
+  { name: "工作", color: "#6366f1", iconValue: "Target" },
+  { name: "学习", color: "#a855f7", iconValue: "Brain" },
+  { name: "摸鱼", color: "#f43f5e", iconValue: "Coffee" },
+  { name: "休息", color: "#10b981", iconValue: "Clock" },
 ];
 
-const EditRecordModal = ({ editingRecord, setEditingRecord, onSave, settings }) => {
+const EditRecordModal = ({ editingRecord, setEditingRecord, onSave, settings, onViewImages }) => {
   const fileInputRef = useRef(null);
 
   const handleFileSelect = (e) => {
@@ -30,7 +30,20 @@ const EditRecordModal = ({ editingRecord, setEditingRecord, onSave, settings }) 
     }
   };
 
+  // Normalize duration to seconds on mount/change of editingRecord
+  React.useEffect(() => {
+    if (editingRecord && editingRecord.duration !== undefined) {
+      const d = editingRecord.duration || 0;
+      if (editingRecord.id < 1739015400000 && d <= 3600) {
+        setEditingRecord((prev) => ({ ...prev, duration: d * 60 }));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingRecord?.id, setEditingRecord]);
+
   if (!editingRecord) return null;
+
+  const accent = settings.accentColor || "var(--accent)";
 
   return (
     <div
@@ -52,7 +65,7 @@ const EditRecordModal = ({ editingRecord, setEditingRecord, onSave, settings }) 
       }}
     >
       <div
-        className="win11-card"
+        className={`win11-card ${settings.win12Experimental ? "win12-experimental" : ""}`}
         style={{
           width: 440,
           maxWidth: "100%",
@@ -60,36 +73,58 @@ const EditRecordModal = ({ editingRecord, setEditingRecord, onSave, settings }) 
           flexDirection: "column",
           animation: "modalScaleIn 0.25s cubic-bezier(0.1, 0.9, 0.2, 1)",
           overflow: "hidden",
-          maxHeight: "85vh",
-          boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
-          borderRadius: 12,
-          backdropFilter: "blur(20px)",
-          backgroundColor: "color-mix(in srgb, var(--card-bg), transparent 15%)",
+          maxHeight: "90vh",
+          backdropFilter: settings.win12Experimental ? "saturate(280%)" : "blur(40px) saturate(180%)",
+          backgroundColor: settings.win12Experimental ? "var(--win12-tint)" : "var(--bg-active)",
           backgroundImage:
-            "linear-gradient(to bottom right, transparent, color-mix(in srgb, var(--accent), transparent 90%))",
+            settings.win12Experimental ? "none" : (
+              "linear-gradient(to bottom right, transparent, color-mix(in srgb, var(--accent), transparent 90%))"
+            ),
           border: "1px solid var(--border-color)",
+          boxShadow: "0 20px 50px rgba(0,0,0,0.25), 0 0 0 1px inset rgba(255, 255, 255, 0.1)",
         }}
       >
         {/* Header */}
         <div
           style={{
-            padding: "16px 20px",
-            borderBottom: "1px solid var(--border-color)",
+            height: "36px",
             display: "flex",
-            justifyContent: "space-between",
             alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 16px",
+            borderBottom: "1px solid var(--border-color)",
+            background: "rgba(255,255,255,0.05)",
+            userSelect: "none",
           }}
         >
-          <h3 className="title" style={{ fontSize: "1rem", margin: 0 }}>
-            {editingRecord.isNew ? "添加事件" : "编辑记录"}
-          </h3>
+          <div
+            style={{
+              fontWeight: 600,
+              fontSize: "0.85rem",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <div
+              style={{
+                width: 3,
+                height: 16,
+                borderRadius: 2,
+                background: "var(--accent)",
+                marginRight: 4,
+              }}
+            ></div>
+            <span>{editingRecord.isNew ? "添加事件" : "编辑记录"}</span>
+          </div>
           <button
             onClick={() => setEditingRecord(null)}
             style={{
-              background: "transparent",
+              background: "none",
               border: "none",
-              color: "var(--text-secondary)",
               cursor: "pointer",
+              opacity: 0.6,
+              color: "var(--text-primary)",
               padding: 4,
             }}
           >
@@ -98,250 +133,344 @@ const EditRecordModal = ({ editingRecord, setEditingRecord, onSave, settings }) 
         </div>
 
         {/* Content */}
-        <div style={{ padding: "16px 20px", overflowY: "auto", flex: 1 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: 12, marginBottom: 12 }}>
-            <div>
-              <label style={{ display: "block", marginBottom: 4, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                任务内容
-              </label>
-              <InputWithClear
-                value={editingRecord.task}
-                onChange={(e) => setEditingRecord({ ...editingRecord, task: e.target.value })}
-                style={{ width: "100%" }}
-                autoFocus
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: 4, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                时长 (分)
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={editingRecord.duration || 1}
-                onChange={(e) => setEditingRecord({ ...editingRecord, duration: parseInt(e.target.value) || 1 })}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  borderRadius: 6,
-                  border: "1px solid var(--border-color)",
-                  background: "var(--bg-secondary)",
-                  color: "var(--text-primary)",
-                  fontSize: "0.9rem",
-                }}
-              />
-            </div>
-          </div>
+        <div
+          style={{
+            padding: "16px",
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            overflowY: "auto",
+          }}
+        >
+          {/* Main Input */}
+          <InputWithClear
+            value={editingRecord.task}
+            onChange={(e) => setEditingRecord({ ...editingRecord, task: e.target.value })}
+            placeholder="你在做什么？"
+            autoFocus
+            style={{ marginBottom: "12px", background: "var(--input-bg)" }}
+          />
 
           {/* Tags Selection */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 8, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-              相关标签
-            </label>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {(settings.tags && settings.tags.length > 0 ? settings.tags : defaultTags).map((tag, idx) => {
-                const isSelected = (editingRecord.tags || []).includes(tag.name);
-                let IconComp = Target;
-                if (tag.iconValue === "Brain") IconComp = Brain;
-                if (tag.iconValue === "Coffee") IconComp = Coffee;
-                if (tag.iconValue === "Clock") IconComp = Clock;
-                if (tag.iconValue === "Sparkles") IconComp = Sparkles;
-                if (tag.iconValue === "List") IconComp = List;
-                if (tag.iconValue === "Layout") IconComp = Layout;
-                if (tag.iconValue === "Send") IconComp = Send;
-
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => {
-                      const currentTags = editingRecord.tags || [];
-                      const newTags =
-                        isSelected ? currentTags.filter((t) => t !== tag.name) : [...currentTags, tag.name];
-                      setEditingRecord({ ...editingRecord, tags: newTags });
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "4px 10px",
-                      borderRadius: 12,
-                      fontSize: "0.8rem",
-                      cursor: "pointer",
-                      background: isSelected ? tag.color : "rgba(128,128,128,0.05)",
-                      color: isSelected ? "white" : "var(--text-primary)",
-                      border: isSelected ? `1px solid ${tag.color}` : "1px solid transparent",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    {tag.iconType === "image" ?
-                      <img
-                        src={tag.iconValue}
-                        style={{ width: 14, height: 14, borderRadius: "50%", objectFit: "cover" }}
-                        onError={(e) => (e.target.style.display = "none")}
-                      />
-                    : <IconComp size={14} />}
-                    {tag.name}
-                  </div>
-                );
-              })}
-            </div>
+          <div style={{ marginBottom: "12px", display: "flex", flexWrap: "wrap", gap: "6px" }}>
+            {(settings.tags && settings.tags.length > 0 ? settings.tags : defaultTags).map((tag) => {
+              const isSelected = (editingRecord.tags || []).includes(tag.name);
+              const baseColor = tag.color || "var(--accent)";
+              return (
+                <span
+                  key={tag.name}
+                  onClick={() => {
+                    const current = editingRecord.tags || [];
+                    const next = isSelected ? current.filter((t) => t !== tag.name) : [...current, tag.name];
+                    setEditingRecord({ ...editingRecord, tags: next });
+                  }}
+                  style={{
+                    fontSize: "0.76rem",
+                    padding: "3px 10px",
+                    borderRadius: "6px",
+                    background: isSelected ? baseColor : "var(--bg-active)",
+                    color: isSelected ? "#fff" : "var(--text-secondary)",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    userSelect: "none",
+                    border: "1px solid",
+                    borderColor: isSelected ? "transparent" : "var(--border-color)",
+                    fontWeight: isSelected ? 600 : 400,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <Tag size={10} style={{ opacity: isSelected ? 1 : 0.5 }} />
+                  {tag.name}
+                </span>
+              );
+            })}
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-              详细描述
-            </label>
-            <textarea
-              value={editingRecord.desc || ""}
-              onChange={(e) => setEditingRecord({ ...editingRecord, desc: e.target.value })}
-              rows={4}
-              style={{
-                width: "100%",
-                resize: "vertical",
-                padding: 12,
-                borderRadius: 8,
-                border: "1px solid var(--border-color)",
-                background: "var(--bg-secondary)",
-                color: "var(--text-primary)",
-                fontFamily: "inherit",
-                fontSize: "0.9rem",
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: "block", marginBottom: 8, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-              相关截图
-            </label>
-            <div
-              style={{
-                borderRadius: 8,
-                minHeight: 80,
-                background: "var(--bg-secondary)",
-                padding: 12,
-                border: "1px dashed var(--border-color)",
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 8,
-                alignItems: "center",
-              }}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                const files = e.dataTransfer.files;
-                if (files && files.length > 0) {
-                  Array.from(files).forEach((file) => {
-                    if (file.type.startsWith("image/")) {
-                      const reader = new FileReader();
-                      reader.onload = (evt) => {
-                        setEditingRecord((prev) => ({
-                          ...prev,
-                          screenshots: [...(prev.screenshots || []), evt.target.result],
-                        }));
-                      };
-                      reader.readAsDataURL(file);
-                    }
-                  });
-                }
-              }}
-            >
-              {editingRecord.screenshots &&
-                editingRecord.screenshots.map((img, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      position: "relative",
-                      width: 80,
-                      height: 60,
-                      borderRadius: 4,
-                      overflow: "hidden",
-                      border: "1px solid var(--border-color)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <img
-                      src={img}
-                      style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer" }}
-                      onClick={() => window.electronAPI && window.electronAPI.send("open-preview", img)}
-                    />
-                    <button
-                      onClick={() => {
-                        const newScreenshots = editingRecord.screenshots.filter((_, i) => i !== idx);
-                        setEditingRecord({ ...editingRecord, screenshots: newScreenshots });
-                      }}
-                      style={{
-                        position: "absolute",
-                        top: 2,
-                        right: 2,
-                        background: "rgba(0,0,0,0.5)",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "50%",
-                        width: 16,
-                        height: 16,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        fontSize: 10,
-                      }}
-                    >
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
-
-              <input
-                type="file"
-                ref={fileInputRef}
-                style={{ display: "none" }}
-                accept="image/*"
-                multiple
-                onChange={handleFileSelect}
-              />
+          {/* Screenshot Gallery - Same as RecordPage */}
+          <div
+            style={{
+              marginBottom: "12px",
+              border: "1px dashed var(--border-color)",
+              borderRadius: "6px",
+              padding: "10px",
+              minHeight: "80px",
+              background: "var(--input-bg)",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              alignItems: "center",
+              justifyContent: "flex-start",
+              overflow: "hidden",
+              boxSizing: "border-box",
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const files = e.dataTransfer.files;
+              if (files && files.length > 0) {
+                Array.from(files).forEach((file) => {
+                  if (file.type.startsWith("image/")) {
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                      setEditingRecord((prev) => ({
+                        ...prev,
+                        screenshots: [...(prev.screenshots || []), evt.target.result],
+                      }));
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                });
+              }
+            }}
+          >
+            {(editingRecord.screenshots || []).map((img, idx) => (
               <div
-                onClick={() => fileInputRef.current?.click()}
+                key={idx}
                 style={{
-                  width: 80,
-                  height: 60,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  color: "var(--text-secondary)",
-                  fontSize: "0.7rem",
+                  position: "relative",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  border: "1px solid var(--border-color)",
+                  width: "96px",
+                  height: "60px",
+                  boxSizing: "border-box",
+                  cursor: "zoom-in",
+                  flexShrink: 0,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                }}
+                onClick={() => {
+                  if (onViewImages) onViewImages(editingRecord.screenshots, idx);
+                  else if (window.electronAPI) window.electronAPI.send("open-preview", img);
                 }}
               >
-                <Plus size={20} />
-                <span style={{ marginTop: 4 }}>添加</span>
+                <img
+                  src={img}
+                  alt={`截图 ${idx + 1}`}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const next = editingRecord.screenshots.filter((_, i) => i !== idx);
+                    setEditingRecord({ ...editingRecord, screenshots: next });
+                  }}
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    right: 4,
+                    background: "rgba(0,0,0,0.6)",
+                    border: "none",
+                    borderRadius: "4px",
+                    color: "white",
+                    padding: 2,
+                    cursor: "pointer",
+                    display: "flex",
+                    backdropFilter: "blur(4px)",
+                  }}
+                >
+                  <X size={12} />
+                </button>
               </div>
+            ))}
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: "none" }}
+              accept="image/*"
+              multiple
+              onChange={handleFileSelect}
+            />
+
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                width: (editingRecord.screenshots || []).length > 0 ? "80px" : "100%",
+                height: (editingRecord.screenshots || []).length > 0 ? "60px" : "100%",
+                display: "flex",
+                flexDirection: (editingRecord.screenshots || []).length > 0 ? "column" : "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                cursor: "pointer",
+                color: "var(--text-secondary)",
+                fontSize: "0.8rem",
+                border: (editingRecord.screenshots || []).length > 0 ? "1px dashed var(--border-color)" : "none",
+                borderRadius: (editingRecord.screenshots || []).length > 0 ? "4px" : "0",
+              }}
+            >
+              {(editingRecord.screenshots || []).length === 0 ?
+                <>
+                  <ImageIcon size={20} opacity={0.5} />
+                  <span>添加记录截图</span>
+                </>
+              : <Plus size={20} opacity={0.5} />}
             </div>
+          </div>
+
+          {/* Description */}
+          <div style={{ display: "flex", flex: 1, position: "relative" }}>
+            <textarea
+              rows={6}
+              placeholder="添加任务详情描述..."
+              value={editingRecord.desc || ""}
+              onChange={(e) => setEditingRecord({ ...editingRecord, desc: e.target.value })}
+              spellCheck={false}
+              style={{
+                resize: "none",
+                flex: 1,
+                width: "100%",
+                background: "var(--input-bg)",
+                border: "1px solid var(--border-color)",
+                borderRadius: "8px",
+                padding: "12px",
+                fontSize: "0.9rem",
+                color: "var(--text-primary)",
+                fontFamily: "inherit",
+              }}
+            />
+            {editingRecord.desc && (
+              <button
+                onClick={() => setEditingRecord({ ...editingRecord, desc: "" })}
+                style={{
+                  position: "absolute",
+                  right: 8,
+                  top: 8,
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  padding: 2,
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Footer */}
+        {/* Footer - Duration Controls + Action */}
         <div
           style={{
-            padding: "16px 20px",
+            padding: "12px 16px",
             borderTop: "1px solid var(--border-color)",
+            background: "rgba(255,255,255,0.03)",
             display: "flex",
-            justifyContent: "flex-end",
-            gap: 12,
-            background: "rgba(128,128,128,0.02)",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexShrink: 0,
           }}
         >
-          <button className="btn" onClick={() => setEditingRecord(null)} style={{ background: "var(--bg-secondary)" }}>
-            取消
-          </button>
-          <button
-            className="btn primary"
-            onClick={onSave}
-            style={{ background: "var(--accent)", borderColor: "transparent", padding: "6px 24px" }}
+          {/* Duration Selector */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+              background: "rgba(255,255,255,0.03)",
+              padding: "2px",
+              borderRadius: "6px",
+              border: "1px solid var(--border-color)",
+              height: "32px",
+            }}
           >
-            保存
-          </button>
+            <button
+              className="btn"
+              style={{
+                padding: "0 4px",
+                border: "none",
+                background: "transparent",
+                minWidth: 24,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              onClick={() => {
+                const mins = Math.round((editingRecord.duration || 0) / 60);
+                setEditingRecord({ ...editingRecord, duration: Math.max(1, mins - 5) * 60 });
+              }}
+            >
+              <Minus size={14} />
+            </button>
+            <input
+              type="number"
+              value={Math.round((editingRecord.duration || 0) / 60)}
+              onChange={(e) => {
+                const mins = Math.max(1, parseInt(e.target.value) || 0);
+                setEditingRecord({ ...editingRecord, duration: mins * 60 });
+              }}
+              style={{
+                width: "35px",
+                border: "none",
+                padding: "0",
+                textAlign: "center",
+                fontSize: "0.8rem",
+                fontWeight: 700,
+                color: "var(--text-primary)",
+                outline: "none",
+                marginBottom: "-0.5px",
+                background: "var(--input-bg)",
+              }}
+            />
+            <span
+              style={{
+                fontSize: "0.7rem",
+                opacity: 0.6,
+                marginRight: 4,
+                display: "flex",
+                alignItems: "center",
+                height: "100%",
+              }}
+            >
+              min
+            </span>
+            <button
+              className="btn"
+              style={{
+                padding: "0 4px",
+                border: "none",
+                background: "transparent",
+                minWidth: 24,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              onClick={() => {
+                const mins = Math.round((editingRecord.duration || 0) / 60);
+                setEditingRecord({ ...editingRecord, duration: (mins + 5) * 60 });
+              }}
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              className="btn"
+              onClick={() => setEditingRecord(null)}
+              style={{ background: "transparent", border: "1px solid var(--border-color)" }}
+            >
+              取消
+            </button>
+            <button
+              className="btn primary"
+              onClick={() => {
+                const hasTask = editingRecord.task?.trim();
+                const hasTags = editingRecord.tags?.length > 0;
+                const hasImages = editingRecord.screenshots?.length > 0;
+                if (!hasTask && !hasTags && !hasImages) {
+                  alert("请填写任务内容或选择标签");
+                  return;
+                }
+                onSave();
+              }}
+              style={{ background: accent, borderColor: "transparent", display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <Save size={14} /> 保存
+            </button>
+          </div>
         </div>
 
         <style>{`

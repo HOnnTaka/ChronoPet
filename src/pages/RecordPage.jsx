@@ -8,15 +8,15 @@ import {
   Plus,
   Check,
   Loader2,
+  Clock,
   Image as ImageIcon,
   Upload,
-  Clock,
   Pin,
   PinOff,
 } from "lucide-react";
 
 // 统一风格弹窗组件
-const AlertDialog = ({ message, onClose, accent }) => (
+const AlertDialog = ({ message, onClose, onConfirm, showCancel, accent, settings = {} }) => (
   <div
     style={{
       position: "fixed",
@@ -30,33 +30,57 @@ const AlertDialog = ({ message, onClose, accent }) => (
       justifyContent: "center",
       zIndex: 9999,
       padding: 16,
+      backdropFilter: settings.win12Experimental ? "blur(4px)" : "none",
     }}
   >
     <div
-      className="win11-card"
+      className={`win11-card ${settings.win12Experimental ? "win12-experimental" : ""}`}
       style={{
         padding: "16px 20px",
         width: 320,
         maxWidth: "90%",
         boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
         border: "1px solid var(--border-color)",
-        borderRadius: 12,
+        borderRadius: settings.win12Experimental ? 20 : 12,
         animation: "alertScaleIn 0.25s cubic-bezier(0.1, 0.9, 0.2, 1)",
-        backdropFilter: "blur(20px)",
-        backgroundColor: "color-mix(in srgb, var(--card-bg), transparent 15%)",
+        backdropFilter: settings.win12Experimental ? "saturate(200%)" : "blur(40px)",
+        backgroundColor: settings.win12Experimental ? "var(--win12-tint)" : "var(--bg-active)",
         backgroundImage:
-          "linear-gradient(to bottom right, transparent, color-mix(in srgb, var(--accent), transparent 90%))",
+          settings.win12Experimental ? "none" : (
+            "linear-gradient(to bottom right, transparent, color-mix(in srgb, var(--accent), transparent 90%))"
+          ),
       }}
     >
-      <h3 className="title" style={{ marginBottom: 12, fontSize: "1rem" }}>
+      <h3 className="title" style={{ marginBottom: 12, fontSize: "0.9rem" }}>
         提示
       </h3>
       <p style={{ marginBottom: 20, color: "var(--text-secondary)", lineHeight: 1.5, fontSize: "0.9rem" }}>{message}</p>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+        {showCancel && (
+          <button
+            className="btn"
+            onClick={onClose}
+            style={{
+              padding: "6px 20px",
+              fontSize: "0.85rem",
+              borderRadius: settings.win12Experimental ? "10px" : "6px",
+            }}
+          >
+            取消
+          </button>
+        )}
         <button
           className="btn primary"
-          onClick={onClose}
-          style={{ background: accent, padding: "6px 20px", fontSize: "0.85rem" }}
+          onClick={() => {
+            if (onConfirm) onConfirm();
+            onClose();
+          }}
+          style={{
+            background: accent,
+            padding: "6px 20px",
+            fontSize: "0.85rem",
+            borderRadius: settings.win12Experimental ? "10px" : "6px",
+          }}
         >
           确定
         </button>
@@ -115,9 +139,9 @@ export default function RecordPage() {
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const [settings, setSettings] = useState({ aiModel: "moonshotai/Kimi-K2.5", aiApiKey: "", customModel: "" });
-  const [duration, setDuration] = useState(30);
-  const [isPomodoro, setIsPomodoro] = useState(false);
   const [pinned, setPinned] = useState(true);
+  const [duration, setDuration] = useState(0); // Default 0 for 'Now'
+  const [timingMode, setTimingMode] = useState(null); // null | 'retro' | 'timer'
 
   useEffect(() => {
     if (window.electronAPI) window.electronAPI.send("set-pinned", pinned);
@@ -125,10 +149,16 @@ export default function RecordPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState([]);
 
-  const [alertMsg, setAlertMsg] = useState(null);
+  const [alertConfig, setAlertConfig] = useState(null);
+  const [records, setRecords] = useState([]);
+
+  useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.invoke("get-records").then(setRecords);
+    }
+  }, []);
   const [aiStatus, setAiStatus] = useState("idle"); // 'idle' | 'loading' | 'success' | 'error'
   const [isFocused, setIsFocused] = useState(true);
-  const startTime = useRef(null);
   const fileInputRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -150,40 +180,39 @@ export default function RecordPage() {
 
   const fetchData = useCallback(async () => {
     if (window.electronAPI) {
-      // Colors
-      const colors = await window.electronAPI.invoke("get-system-colors");
+      // Use concurrent fetches for performance
+      const [colors, s] = await Promise.all([
+        window.electronAPI.invoke("get-system-colors"),
+        window.electronAPI.invoke("get-settings"),
+      ]);
+
       if (colors?.accent) {
         const hex = "#" + colors.accent;
         setAccent(hex);
         document.documentElement.style.setProperty("--accent", hex);
       }
 
-      // Settings
-      const s = await window.electronAPI.invoke("get-settings");
       if (s) {
         setSettings(s);
-      }
-
-      // Records for duration default
-      const records = await window.electronAPI.invoke("get-records");
-      if (records && records.length > 0) {
-        const last = records[records.length - 1];
-        // Sync logic: Duration = Now - (Last.Start + Last.Duration)
-        // This represents the "gap" or "current unspoken status" duration
-        const lastEnd = last.id + (last.duration || 0) * 60000;
-        const diff = Math.max(1, Math.round((Date.now() - lastEnd) / 60000));
-        setDuration(diff);
-      } else {
-        setDuration(30);
       }
     }
   }, []);
 
   useEffect(() => {
-    startTime.current = Date.now();
+    let mounted = true;
+    (async () => {
+      if (mounted) await fetchData();
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [fetchData]);
+
+  useEffect(() => {
     let mounted = true;
 
-    fetchData();
+    // fetchData is called via another effect or manually if needed
+    // fetchData(); removed to fix lint
 
     const handlePaste = (e) => {
       const items = (e.clipboardData || e.originalEvent.clipboardData).items;
@@ -250,8 +279,12 @@ export default function RecordPage() {
     let removeAiListener = null;
     let removeRecordsUpdateListener = null;
     let removeQuickRecord = null;
+    let removeThemeListener = null;
 
     if (window.electronAPI) {
+      removeThemeListener = window.electronAPI.receive("theme-updated", (data) => {
+        if (data.accent) setAccent("#" + data.accent);
+      });
       removeCaptureListener = window.electronAPI.receive("screen-captured", onScreenCaptured);
       removeAiListener = window.electronAPI.receive("ai-summary-response", (result) => {
         setAiLoading(false);
@@ -284,12 +317,9 @@ export default function RecordPage() {
           desc: "快速记录",
           tags: [tag],
           screenshots: image ? [image] : [],
-          duration: 30, // Default duration for the NEW record (future planning)
-          shouldSyncDuration: true, // Auto-sync previous record duration
+          duration: 0, // 0 means active/unlimited
         };
         window.electronAPI.send("save-record", record);
-        // Optional: Notify or close?
-        // Since this might be triggered from hidden window, we don't need UI feedback locally except success.
       });
     }
 
@@ -298,6 +328,8 @@ export default function RecordPage() {
       window.removeEventListener("paste", handlePaste);
       window.removeEventListener("keydown", handleKeyDown);
       if (removeCaptureListener) removeCaptureListener();
+      if (removeThemeListener) removeThemeListener();
+      if (removeRecordsUpdateListener) removeRecordsUpdateListener();
       if (removeAiListener) removeAiListener();
       if (removeRecordsUpdateListener) removeRecordsUpdateListener();
       if (removeQuickRecord) removeQuickRecord();
@@ -332,6 +364,25 @@ export default function RecordPage() {
     if (window.electronAPI) window.electronAPI.send("input-window-moving", { isMoving: false });
   }, []);
 
+  // 自动调整窗口高度
+  useEffect(() => {
+    if (!window.electronAPI) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        // 获取内容实际高度并发送给主进程
+        const height = entry.target.scrollHeight;
+        window.electronAPI.send("resize-input-window", { height: height + 2 }); // +2 for border
+      }
+    });
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
@@ -356,7 +407,7 @@ export default function RecordPage() {
 
     // 自定义模型需要 API key
     if (!isBuiltinModel && !settings.aiApiKey) {
-      setAlertMsg("自定义模型需要配置 API 密钥，请在设置中配置");
+      setAlertConfig({ message: "自定义模型需要配置 API 密钥，请在设置中配置" });
       return;
     }
 
@@ -372,38 +423,55 @@ export default function RecordPage() {
   };
 
   const handleSave = () => {
-    if (!task.trim() && screenshots.length === 0 && selectedTags.length === 0) {
-      setAlertMsg("请填写任务内容、选择标签或上传截图");
+    if (!task.trim() && selectedTags.length === 0 && screenshots.length === 0) {
+      setAlertConfig({ message: "请填写任务内容或选择标签" });
       return;
     }
 
-    // Fix: Always use Date.now() for start time to ensure "continuous flow".
-    // The previous logic `Date.now() - duration` was treating every record as a backfill of the past N minutes.
-    // But if we want to "stop previous timer and start new one", the new one must start NOW.
-    const startId = Date.now();
+    const finalDurationS = Math.max(1, duration * 60);
+    let startId = Date.now();
+    let isFocusMode = timingMode === "timer";
+
+    if (timingMode === "retro") {
+      startId = Date.now() - duration * 60 * 1000;
+    }
+
     const record = {
-      // 若专注模式，Start = Now. 若补录，Start = Now - Duration.
       id: startId,
       timestamp: new Date(startId).toISOString(),
-      isFocus: isPomodoro, // Marker for Pet/Dashboard
+      isFocus: isFocusMode,
       task: task.trim() || (selectedTags.length > 0 ? selectedTags.join(" ") : "未命名任务"),
       desc: desc.trim(),
       tags: selectedTags,
-      duration: duration || 1,
+      duration: timingMode ? finalDurationS : 0, // 0 for "Start Now" unlimited
       screenshots: screenshots,
-      shouldSyncDuration: !isPomodoro, // 非专注模式（普通补录）才尝试同步上一条时长
     };
 
-    if (window.electronAPI) {
-      window.electronAPI.send("save-record", record);
-      // 这里不再需要在前端重置，因为窗口会隐藏/销毁
-    }
+    const performSave = () => {
+      if (window.electronAPI) {
+        window.electronAPI.send("save-record", record);
+      }
+      setTask("");
+      setDesc("");
+      setScreenshots([]);
+      setSelectedTags([]);
+    };
 
-    setTask("");
-    setDesc("");
-    setScreenshots([]);
-    setSelectedTags([]);
-    startTime.current = Date.now();
+    // Overlap detection
+    const currentDurationS = record.duration;
+    const currentEnd = record.id + currentDurationS * 1000;
+
+    const hasOverlap = records.some((r) => r.id > record.id && r.id < currentEnd);
+
+    if (hasOverlap) {
+      setAlertConfig({
+        message: "该任务的时长覆盖了后续的任务，确定要保存吗？",
+        showCancel: true,
+        onConfirm: performSave,
+      });
+    } else {
+      performSave();
+    }
   };
 
   const removeScreenshot = (index) => {
@@ -437,7 +505,10 @@ export default function RecordPage() {
   };
 
   return (
-    <div ref={containerRef} className={`win-container ${isFocused ? "" : "inactive"}`}>
+    <div
+      ref={containerRef}
+      className={`win-container ${isFocused ? "" : "inactive"} ${settings.win12Experimental ? "win12-experimental" : ""}`}
+    >
       <div
         onMouseDown={handleMouseDown}
         style={{
@@ -449,7 +520,10 @@ export default function RecordPage() {
           cursor: isDragging ? "grabbing" : "grab",
           userSelect: "none",
           borderBottom: "1px solid var(--border-color)",
-          background: isFocused ? "rgba(255,255,255,0.05)" : "transparent",
+          background:
+            settings.win12Experimental ? "transparent"
+            : isFocused ? "rgba(255,255,255,0.05)"
+            : "transparent",
         }}
       >
         <div
@@ -467,7 +541,7 @@ export default function RecordPage() {
               width: 3,
               height: 16,
               borderRadius: 2,
-              background: isFocused ? accent : "transparent",
+              background: isFocused ? "var(--accent)" : "transparent",
               marginRight: 4,
             }}
           ></div>
@@ -537,26 +611,35 @@ export default function RecordPage() {
               { name: "摸鱼", color: "#f43f5e" },
               { name: "休息", color: "#10b981" },
             ]
-          ).map((tag) => (
-            <span
-              key={tag.name}
-              onClick={() => toggleTag(tag.name)}
-              style={{
-                fontSize: "0.75rem",
-                padding: "2px 8px",
-                borderRadius: "12px",
-                background: selectedTags.includes(tag.name) ? tag.color : "rgba(128,128,128,0.1)",
-                color: selectedTags.includes(tag.name) ? "#fff" : "var(--text-secondary)",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                userSelect: "none",
-                border: "1px solid transparent",
-                borderColor: selectedTags.includes(tag.name) ? "transparent" : "var(--border-color)",
-              }}
-            >
-              {tag.name}
-            </span>
-          ))}
+          ).map((tag) => {
+            const isSelected = selectedTags.includes(tag.name);
+            const baseColor = tag.color || "var(--accent)";
+            return (
+              <span
+                key={tag.name}
+                onClick={() => toggleTag(tag.name)}
+                style={{
+                  fontSize: "0.76rem",
+                  padding: "3px 10px",
+                  borderRadius: "6px",
+                  background: isSelected ? baseColor : "var(--bg-active)",
+                  color: isSelected ? "#fff" : "var(--text-secondary)",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  userSelect: "none",
+                  border: "1px solid",
+                  borderColor: isSelected ? "transparent" : "var(--border-color)",
+                  fontWeight: isSelected ? 600 : 400,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <Tag size={10} style={{ opacity: isSelected ? 1 : 0.5 }} />
+                {tag.name}
+              </span>
+            );
+          })}
 
           <div style={{ position: "relative" }}>
             <span
@@ -573,132 +656,13 @@ export default function RecordPage() {
                 display: "flex",
                 alignItems: "center",
                 gap: 2,
+                userSelect: "none",
               }}
             >
               <Plus size={10} /> 标签
             </span>
           </div>
         </div>
-
-        {/* Pomodoro Toggle & Timer Module */}
-        <div style={{ marginBottom: "12px" }} className="no-drag">
-          {/* Custom Switch for Countdown Mode */}
-          <div
-            onClick={() => setIsPomodoro(!isPomodoro)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              cursor: "pointer",
-              userSelect: "none",
-              marginBottom: isPomodoro ? "8px" : "0",
-            }}
-          >
-            <div
-              style={{
-                width: 36,
-                height: 20,
-                background: isPomodoro ? accent : "rgba(128,128,128,0.2)",
-                borderRadius: 10,
-                position: "relative",
-                transition: "all 0.25s cubic-bezier(0.4, 0.0, 0.2, 1)",
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  left: isPomodoro ? 18 : 2,
-                  top: 2,
-                  width: 16,
-                  height: 16,
-                  background: "white",
-                  borderRadius: "50%",
-                  transition: "all 0.25s cubic-bezier(0.4, 0.0, 0.2, 1)",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                }}
-              ></div>
-            </div>
-            <span style={{ fontSize: "0.9rem", fontWeight: 500, color: "var(--text-primary)" }}>倒计时模式</span>
-          </div>
-
-          {/* Conditional Time Settings */}
-          {isPomodoro && (
-            <div
-              style={{
-                background: "rgba(0,0,0,0.02)",
-                border: "1px solid var(--border-color)",
-                borderRadius: "8px",
-                padding: "12px",
-                paddingBottom: "0",
-                animation: "slideDown 0.2s ease-out",
-              }}
-            >
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                {[10, 25, 30, 60].map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => setDuration(m)}
-                    style={{
-                      flex: 1,
-                      padding: "6px 0",
-                      background: duration === m ? accent : "rgba(128,128,128,0.05)",
-                      border: "1px solid",
-                      borderColor: duration === m ? accent : "transparent",
-                      borderRadius: 6,
-                      color: duration === m ? "white" : "var(--text-secondary)",
-                      fontSize: "0.85rem",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    {m}m
-                  </button>
-                ))}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <Clock size={16} style={{ color: "var(--text-secondary)", marginBottom: "10px" }} />
-                <input
-                  type="range"
-                  min="1"
-                  max="180"
-                  value={duration}
-                  onChange={(e) => setDuration(parseInt(e.target.value))}
-                  style={{ flex: 1, height: 4, accentColor: accent, cursor: "pointer" }}
-                />
-                <input
-                  type="number"
-                  min="1"
-                  value={duration}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value);
-                    if (!isNaN(val)) setDuration(val);
-                  }}
-                  style={{
-                    width: 50,
-                    textAlign: "center",
-                    fontSize: "0.9rem",
-                    fontVariantNumeric: "tabular-nums",
-                    fontWeight: 600,
-                    border: "1px solid var(--border-color)",
-                    borderRadius: "4px",
-                    background: "var(--bg-secondary)",
-                    color: "var(--text-primary)",
-                    padding: "2px 0px",
-                    marginRight: -5,
-                  }}
-                />
-                <span style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "5px" }}>m</span>
-              </div>
-            </div>
-          )}
-        </div>
-        <style>{`
-          @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-5px); margin-top: -10px; }
-            to { opacity: 1; transform: translateY(0); margin-top: 0; }
-          }
-        `}</style>
 
         <div style={{ display: "flex", gap: "8px", marginBottom: "12px", alignItems: "center" }} className="no-drag">
           <button className="btn" onClick={handleScreenshot}>
@@ -744,16 +708,16 @@ export default function RecordPage() {
             marginBottom: "12px",
             border: "1px dashed var(--border-color)",
             borderRadius: "6px",
-            padding: "8px",
-            minHeight: screenshots.length > 0 ? "auto" : "80px",
+            padding: "10px",
+            minHeight: "80px",
             background: "var(--input-bg)",
             display: "flex",
             flexWrap: "wrap",
             gap: "8px",
-            alignItems: screenshots.length > 0 ? "flex-start" : "center",
-            justifyContent: screenshots.length > 0 ? "flex-start" : "center",
-            overflowY: "auto",
-            maxHeight: "130px",
+            alignItems: "center",
+            justifyContent: "flex-start",
+            overflow: "hidden",
+            boxSizing: "border-box",
           }}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
@@ -775,13 +739,15 @@ export default function RecordPage() {
               key={idx}
               style={{
                 position: "relative",
-                borderRadius: "4px",
+                borderRadius: "8px",
                 overflow: "hidden",
                 border: "1px solid var(--border-color)",
-                width: "80px",
+                width: "96px",
                 height: "60px",
+                boxSizing: "border-box",
                 cursor: "zoom-in",
                 flexShrink: 0,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
               }}
               onClick={() => openPreview(img)}
             >
@@ -802,18 +768,19 @@ export default function RecordPage() {
                 }}
                 style={{
                   position: "absolute",
-                  top: 2,
-                  right: 2,
+                  top: 4,
+                  right: 4,
                   background: "rgba(0,0,0,0.6)",
                   border: "none",
-                  borderRadius: "3px",
+                  borderRadius: "4px",
                   color: "white",
                   padding: 2,
                   cursor: "pointer",
                   display: "flex",
+                  backdropFilter: "blur(4px)",
                 }}
               >
-                <X size={10} />
+                <X size={12} />
               </button>
             </div>
           ))}
@@ -889,25 +856,158 @@ export default function RecordPage() {
         style={{
           padding: "12px 16px",
           borderTop: "1px solid var(--border-color)",
-          background: isFocused ? "var(--bg-active)" : "var(--bg-inactive)",
+          background:
+            settings.win12Experimental ? "rgba(255,255,255,0.02)"
+            : isFocused ? "var(--bg-active)"
+            : "var(--bg-inactive)",
           display: "flex",
           justifyContent: "space-between", // Maybe add more controls later?
           alignItems: "center",
           flexShrink: 0,
+          userSelect: "none",
         }}
       >
-        <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-          {/* Optional status info or just spacer */}
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              background: "rgba(255,255,255,0.03)",
+              padding: "2px",
+              borderRadius: "8px 0px 0px 8px",
+              border: "1px solid var(--border-color)",
+              borderRight: "none",
+              height: "32px",
+            }}
+          >
+            <button
+              onClick={() => setTimingMode(timingMode === "retro" ? null : "retro")}
+              className="no-drag"
+              style={{
+                padding: "4px 10px",
+                borderRadius: "6px",
+                border: "none",
+                background: timingMode === "retro" ? accent : "transparent",
+                color: timingMode === "retro" ? "#fff" : "var(--text-secondary)",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+            >
+              补记
+            </button>
+            <button
+              onClick={() => setTimingMode(timingMode === "timer" ? null : "timer")}
+              className="no-drag"
+              style={{
+                padding: "4px 10px",
+                borderRadius: "6px",
+                border: "none",
+                background: timingMode === "timer" ? accent : "transparent",
+                color: timingMode === "timer" ? "#fff" : "var(--text-secondary)",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+            >
+              计时
+            </button>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+              background: "rgba(255,255,255,0.03)",
+              padding: "0 2px 0 10px",
+              borderRadius: "0 6px 6px 0",
+              border: "1px solid var(--border-color)",
+              borderLeft: "none",
+              height: "32px",
+              opacity: timingMode ? 1 : 0.5,
+              pointerEvents: timingMode ? "auto" : "none",
+              transition: "opacity 0.2s",
+            }}
+          >
+            <button
+              className="btn no-drag"
+              style={{
+                padding: "0 4px",
+                border: "none",
+                background: "transparent",
+                minWidth: 20,
+                cursor: timingMode ? "pointer" : "not-allowed",
+              }}
+              onClick={() => setDuration(Math.max(0, duration - 5))}
+              disabled={!timingMode}
+            >
+              -
+            </button>
+            <input
+              type="number"
+              value={duration}
+              onChange={(e) => setDuration(Math.max(0, parseInt(e.target.value) || 0))}
+              className="no-drag"
+              disabled={!timingMode}
+              style={{
+                width: "30px",
+                border: "none",
+                padding: "0",
+                textAlign: "center",
+                fontSize: "0.8rem",
+                fontWeight: 700,
+                color: "var(--text-primary)",
+                marginBottom: "-1px",
+                background: "transparent",
+                cursor: timingMode ? "text" : "not-allowed",
+              }}
+            />
+            <span
+              style={{
+                fontSize: "0.7rem",
+                opacity: 0.6,
+                display: "flex",
+                alignItems: "center",
+                height: "100%",
+                marginLeft: "-2px",
+              }}
+            >
+              m
+            </span>
+            <button
+              className="btn no-drag"
+              style={{
+                padding: "0 4px",
+                border: "none",
+                background: "transparent",
+                minWidth: 20,
+                cursor: timingMode ? "pointer" : "not-allowed",
+              }}
+              onClick={() => setDuration(duration + 5)}
+              disabled={!timingMode}
+            >
+              +
+            </button>
+          </div>
         </div>
+
         <button className="btn primary" onClick={handleSave} style={{ background: accent }}>
-          {isPomodoro ?
-            <Clock size={14} />
-          : <Save size={14} />}{" "}
-          {isPomodoro ? "开始专注" : "保存"}
+          <Save size={14} /> 保存
         </button>
       </div>
 
-      {alertMsg && <AlertDialog message={alertMsg} onClose={() => setAlertMsg(null)} accent={accent} />}
+      {alertConfig && (
+        <AlertDialog
+          message={alertConfig.message}
+          onClose={() => setAlertConfig(null)}
+          onConfirm={alertConfig.onConfirm}
+          showCancel={alertConfig.showCancel}
+          accent={accent}
+          settings={settings}
+        />
+      )}
     </div>
   );
 }

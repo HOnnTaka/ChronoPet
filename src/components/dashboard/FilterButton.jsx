@@ -10,8 +10,9 @@ const FilterButton = ({ id, label, activeId, hasDateRange, onClick }) => (
           background: "var(--accent)",
           color: "white",
           borderColor: "transparent",
+          userSelect: "none",
         }
-      : {}
+      : { userSelect: "none" }
     }
   >
     {label}

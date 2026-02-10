@@ -1,10 +1,80 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Plus, Clock, List, Layout, Sparkles, Target, Coffee, Brain, X, Edit3, Loader2, Send } from "lucide-react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import {
+  Plus,
+  Clock,
+  List,
+  Layout,
+  Sparkles,
+  Target,
+  Coffee,
+  Brain,
+  X,
+  Edit3,
+  Loader2,
+  Send,
+  Square,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+
+// Helper to get duration in seconds
+const getDurationS = (record) => {
+  if (!record) return 0;
+  const d = record.duration || 0;
+  // If record is newer than the migration time, it's seconds
+  if (record.id > 1739015400000 || d > 3600) return d;
+  return d * 60;
+};
+
+const resolveStatusIcon = (settings, statusLabel, tags = []) => {
+  const s = settings || {};
+  const preset = s.petPreset || "apple";
+  const appearance = s.appearance || {};
+  const overrides = appearance[preset] || {};
+  const suffix = preset === "manbo" ? "_mb" : "";
+  const baseIcon = `icon_base${suffix}.png`;
+
+  if (statusLabel === "空闲") {
+    if (overrides["Idle"]) return overrides["Idle"];
+    const currentIdle = s.petIconPath;
+    if (currentIdle && currentIdle !== "icon_base.png" && currentIdle !== "icon_base_mb.png") {
+      return currentIdle;
+    }
+    return baseIcon;
+  }
+
+  const tagList = tags || [];
+
+  // Check overrides
+  if (tagList.includes("工作") && overrides["工作"]) return overrides["工作"];
+  if (tagList.includes("学习") && overrides["学习"]) return overrides["学习"];
+  if (tagList.includes("休息") && overrides["休息"]) return overrides["休息"];
+  if (tagList.includes("摸鱼") && overrides["摸鱼"]) return overrides["摸鱼"];
+
+  // Check legacy global overrides
+  if (tagList.includes("工作") && s.petIconWork) return s.petIconWork;
+  if (tagList.includes("学习") && s.petIconStudy) return s.petIconStudy;
+  if (tagList.includes("休息") && s.petIconRest) return s.petIconRest;
+  if (tagList.includes("摸鱼") && s.petIconMoyu) return s.petIconMoyu;
+
+  // Custom tag petIcon
+  const activeCustomTag = s.tags ? s.tags.find((t) => tagList.includes(t.name)) : null;
+  if (activeCustomTag && activeCustomTag.petIcon) return activeCustomTag.petIcon;
+
+  // Defaults with suffix
+  if (tagList.includes("工作")) return `icon_work${suffix}.png`;
+  if (tagList.includes("学习")) return `icon_study${suffix}.png`;
+  if (tagList.includes("休息")) return `icon_rest${suffix}.png`;
+  if (tagList.includes("摸鱼")) return `icon_moyu${suffix}.png`;
+
+  return `icon_base${suffix}.png`;
+};
 
 const Pet = () => {
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const [isSwitching, setIsSwitching] = useState(false);
+  const [isDark, setIsDark] = useState(true);
   const [accent, setAccent] = useState("#7c3aed");
   const [iconPath, setIconPath] = useState("icon_moyu.png");
   const [lastRecordTime, setLastRecordTime] = useState(() => Date.now());
@@ -20,9 +90,17 @@ const Pet = () => {
   const [currentStatus, setCurrentStatus] = useState("空闲");
   const [lastRecord, setLastRecord] = useState(null);
   const [settings, setSettings] = useState({});
-  const hasPlayedSound = useRef(false);
+  const [tagPage, setTagPage] = useState(0);
+  const [slideAnim, setSlideAnim] = useState("slideInFromRight");
 
-  const playBeep = () => {
+  const handlePageChange = (newPage, direction) => {
+    if (newPage === tagPage) return;
+    const dir = direction || (newPage > tagPage ? "next" : "prev");
+    setSlideAnim(dir === "next" ? "slideInFromRight" : "slideInFromLeft");
+    setTagPage(newPage);
+  };
+  const hasPlayedSound = useRef({ recordId: null, played: false });
+  const playBeepFallback = useCallback(() => {
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
@@ -41,13 +119,34 @@ const Pet = () => {
     } catch (e) {
       console.error(e);
     }
-  };
+  }, []);
+
+  const playEndSound = useCallback(() => {
+    if (settings?.timerEndAudioEnabled === false) return;
+    const audioPath = settings?.timerEndAudioPath || "manbo.wav";
+
+    try {
+      const isAbsolute = audioPath.includes(":") || audioPath.startsWith("/");
+      const src = isAbsolute ? `file://${audioPath}` : audioPath;
+
+      const audio = new Audio(src);
+      audio.volume = 0.6;
+      audio.play().catch((err) => {
+        console.warn("Audio file play failed, using fallback beep:", err);
+        playBeepFallback();
+      });
+    } catch (e) {
+      console.error("Sound play error:", e);
+      playBeepFallback();
+    }
+  }, [settings, playBeepFallback]);
 
   const fetchData = async () => {
     try {
       if (window.electronAPI) {
         const colors = await window.electronAPI.invoke("get-system-colors");
         if (colors?.accent) setAccent("#" + colors.accent);
+        if (colors?.isDark !== undefined) setIsDark(colors.isDark);
 
         const settings = await window.electronAPI.invoke("get-settings");
         setSettings(settings || {});
@@ -84,55 +183,60 @@ const Pet = () => {
 
         const records = await window.electronAPI.invoke("get-records");
 
-        let iconToUse = "icon_moyu.png";
+        // resolveStatusIcon introduced outside to make it accessible to other functions
+        let iconToUse = resolveStatusIcon(settings, "空闲");
         let status = "空闲";
+        let lastRecordToSet = null;
+        let lastRecordTimeToSet = null;
 
-        // Always show the last record as current status
         if (records && records.length > 0) {
-          const last = records[records.length - 1];
-          const tags = last.tags || [];
+          // Find the chronologically latest record, not just the last in array
+          const sorted = [...records].sort((a, b) => a.id - b.id);
+          const last = sorted[sorted.length - 1];
+          const now = Date.now();
+          const durationMs =
+            last.id > 1739015400000 || (last.duration || 0) > 3600 ?
+              (last.duration || 0) * 1000
+            : (last.duration || 0) * 60000;
+          const end = last.id + durationMs;
 
-          status = tags.length > 0 ? tags[0] : last.task || "进行中";
+          // Special case: duration 0 means "Until stopped" (Unlimited)
+          // We treat it as always active unless explicitly stopped (which would set a duration)
+          const isUnlimited = last.duration === 0;
 
-          if (tags.includes("学习")) iconToUse = settings.petIconStudy || "icon_study.png";
-          else if (tags.includes("工作")) iconToUse = settings.petIconWork || "icon_work.png";
-          else if (tags.includes("休息")) iconToUse = settings.petIconRest || "icon_rest.png";
-          else {
-            // Check for custom tag icon
-            const activeCustomTag = settings.tags ? settings.tags.find((t) => tags.includes(t.name)) : null;
-            if (activeCustomTag && activeCustomTag.petIcon) {
-              iconToUse = activeCustomTag.petIcon;
-            } else {
-              iconToUse = settings.petIconPath || "icon_moyu.png";
-            }
-          }
-
-          if (last.isFocus) {
-            const now = Date.now();
-            const end = last.id + (last.duration || 0) * 60000;
-            if (now >= end) {
-              // Expired, switch to Moyu
-              iconToUse = settings.petIconPath || "icon_moyu.png";
-              status = "摸鱼";
-              setLastRecordTime(end); // Count from when it finished
-            } else {
-              setLastRecordTime(last.id);
-            }
+          // Heuristic: if a FIXED duration record ended more than 5s ago, consider it "Idle"
+          if (!isUnlimited && now >= end + 5000) {
+            status = "空闲";
+            iconToUse = resolveStatusIcon(settings, "空闲");
+            lastRecordTimeToSet = null;
+            lastRecordToSet = null;
           } else {
-            setLastRecordTime(last.id); // Always count from start
-          }
-          setLastRecord(last);
-        } else {
-          // No records at all -> Idle
-          iconToUse = settings.petIconPath || "icon_moyu.png";
-          status = "空闲";
-          setLastRecordTime(Date.now());
-          setLastRecord(null);
-        }
+            status = "记录中";
+            lastRecordToSet = last;
+            lastRecordTimeToSet = last.id;
+            const tags = last.tags || [];
 
-        setIconPath(iconToUse);
-        setCurrentStatus(status);
+            if (tags.includes("学习")) status = "学习中";
+            else if (tags.includes("工作")) status = "工作中";
+            else if (tags.includes("休息")) status = "休息中";
+            else if (tags.includes("摸鱼")) status = "摸鱼中";
+
+            iconToUse = resolveStatusIcon(settings, status, tags);
+          }
+
+          setIconPath(iconToUse);
+          setCurrentStatus(status);
+          setLastRecord(lastRecordToSet);
+          setLastRecordTime(lastRecordTimeToSet);
+        } else {
+          setIconPath(resolveStatusIcon(settings, "空闲"));
+          setCurrentStatus("空闲");
+          setLastRecord(null);
+          setLastRecordTime(null);
+        }
       }
+    } catch (e) {
+      console.error(e);
     } finally {
       setIsSwitching(false);
     }
@@ -146,14 +250,27 @@ const Pet = () => {
     const cleanUpdates = window.electronAPI?.receive("records-updated", () => fetchData());
     // Listen for tab/settings updates to refresh tags
     const cleanSettingsUpdates = window.electronAPI?.receive("settings-updated", () => fetchData()); // Assuming we might trigger this
+
+    // Listen for system theme updates
+    const cleanThemeUpdates = window.electronAPI?.receive("theme-updated", (data) => {
+      if (data.isDark !== undefined) setIsDark(data.isDark);
+      if (data.accent) setAccent("#" + data.accent);
+    });
+
     return () => {
       if (cleanUpdates) cleanUpdates();
       if (cleanSettingsUpdates) cleanSettingsUpdates();
+      if (cleanThemeUpdates) cleanThemeUpdates();
     };
   }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
+      if (!lastRecordTime) {
+        setDurationStr("空闲中");
+        return;
+      }
+
       const now = Date.now();
 
       // Reset sound flag if record changes
@@ -162,59 +279,55 @@ const Pet = () => {
       }
 
       let timeStr = "";
-      let diff = Math.max(0, now - lastRecordTime);
+      const diffMs = Math.max(0, now - lastRecordTime);
+      const diffS = Math.floor(diffMs / 1000);
 
       if (lastRecord && lastRecord.isFocus) {
-        // Focus Mode
-        const durationMs = (lastRecord.duration || 0) * 60000;
-        // Recalculate diff relative to start (lastRecord.id) for progress
-        // Wait, fetchData might have changed lastRecordTime to 'end' if expired
-        // Let's use lastRecord.id directly for calculating progress
-        const elapsed = now - lastRecord.id;
+        const durationS = getDurationS(lastRecord);
+        const elapsedS = Math.floor((now - lastRecord.id) / 1000);
 
-        if (elapsed >= durationMs) {
-          // Finished
+        if (elapsedS >= durationS) {
           if (!hasPlayedSound.current.played) {
-            playBeep();
+            playEndSound();
             hasPlayedSound.current.played = true;
-            // Force visual update to Moyu if not already
-            setCurrentStatus("摸鱼");
-            setIconPath(settings?.petIconPath || "icon_moyu.png");
+            setCurrentStatus("空闲");
+            setIconPath(resolveStatusIcon(settings, "空闲"));
+            setLastRecordTime(null); // Ensure timer stops updating for this record
+            if (window.electronAPI) {
+              window.electronAPI.send("sync-app-icon");
+            }
           }
-          // Count uptime since finish
-          diff = Math.max(0, elapsed - durationMs);
+          timeStr = "已结束";
         } else {
-          // Running
-          diff = elapsed;
-        }
-
-        // Format: Elapsed / Total
-        // e.g. 5m 0s / 25m
-        const eM = Math.floor(diff / 60000);
-        const eS = Math.floor((diff % 60000) / 1000);
-        const tM = lastRecord.duration;
-
-        if (elapsed >= durationMs) {
-          // Overtime
-          const oHrs = Math.floor(diff / 3600000);
-          const oMins = Math.floor((diff % 3600000) / 60000);
-          const oSecs = Math.floor((diff % 60000) / 1000);
-          timeStr = `+ ${oHrs > 0 ? oHrs + "h " : ""}${oMins}m ${oSecs}s`;
-        } else {
-          timeStr = `${eM}m ${eS}s / ${tM}m`;
+          const eM = Math.floor(elapsedS / 60);
+          const eS = elapsedS % 60;
+          const tM = Math.floor(durationS / 60);
+          const tS = durationS % 60;
+          timeStr = `${eM}m ${eS}s / ${tM}m ${tS}s`;
         }
       } else {
-        // Standard Mode
-        const hours = Math.floor(diff / 3600000);
-        const minutes = Math.floor((diff % 3600000) / 60000);
-        const seconds = Math.floor((diff % 60000) / 1000);
-        timeStr = `${hours > 0 ? hours + "h " : ""}${minutes}m ${seconds}s`;
+        const durationS = getDurationS(lastRecord);
+        if (diffS >= durationS && durationS > 0) {
+          setCurrentStatus("空闲");
+          setDurationStr("空闲中");
+          setIconPath(resolveStatusIcon(settings, "空闲"));
+          setLastRecordTime(null);
+          if (window.electronAPI) {
+            window.electronAPI.send("sync-app-icon");
+          }
+          return;
+        }
+
+        const h = Math.floor(diffS / 3600);
+        const m = Math.floor((diffS % 3600) / 60);
+        const s = diffS % 60;
+        timeStr = `${h > 0 ? h + "h " : ""}${m}m ${s}s`;
       }
 
       setDurationStr(`${currentStatus} ${timeStr}`);
     }, 1000);
     return () => clearInterval(timer);
-  }, [lastRecordTime, currentStatus, lastRecord, settings]);
+  }, [lastRecordTime, currentStatus, lastRecord, settings, playEndSound]);
 
   const handleMouseDown = (e) => {
     if (e.button !== 0) return;
@@ -301,9 +414,23 @@ const Pet = () => {
     }
   };
 
-  // 限制显示的标签数量为6个，多余的用+号展示
-  const visibleTags = availableTags.slice(0, 6);
-  // Unused: const hasMoreTags = availableTags.length > 6;
+  const handleStop = () => {
+    if (window.electronAPI) {
+      // Local optimistic update
+      setCurrentStatus("空闲");
+      setLastRecordTime(null);
+      setDurationStr("空闲中 0s");
+      setIconPath(resolveStatusIcon(settings, "空闲"));
+
+      window.electronAPI.send("stop-current-record");
+      setShowMenu(false);
+    }
+  };
+
+  // Tags Pagination
+  const tagsPerPage = 6;
+  const totalPages = Math.ceil(availableTags.length / tagsPerPage);
+  const currentTags = availableTags.slice(tagPage * tagsPerPage, (tagPage + 1) * tagsPerPage);
 
   // Mouse Through Logic with Grace Period
   const ignoreTimeoutRef = useRef(null);
@@ -321,6 +448,20 @@ const Pet = () => {
     ignoreTimeoutRef.current = setTimeout(() => {
       setIgnoreMouse(true);
     }, 300); // Increased grace period to 300ms to prevent flickering during gap traversal
+  };
+
+  const themeStyles = {
+    bubbleBg: isDark ? "rgba(20,20,20,0.99)" : "rgba(255,255,255,0.98)",
+    bubbleShadow:
+      isDark ?
+        "0 20px 50px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.1)"
+      : "0 20px 50px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,1)",
+    textPrimary: isDark ? "#ffffff" : "#1a1a1a",
+    textSecondary: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.6)",
+    btnBg: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.03)",
+    btnBorder: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+    btnHoverBg: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
+    btnText: isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.9)",
   };
 
   return (
@@ -361,20 +502,21 @@ const Pet = () => {
               // 注意：在 Electron 透明窗口中，backdrop-filter 无法模糊窗口背后的 OS 桌面，只能模糊窗口内的元素。
               // 若要模糊桌面背景，需要开启窗口的 acrylic 材质，但这会导致整个 600x800 窗口变成矩形磨砂块，破坏异形效果。
               // 因此此处采用高不透明度 + 渐变 + 内阴影来模拟质感。
-              background: "rgba(20,20,20,0.99)",
+              // 因此此处采用高不透明度 + 渐变 + 内阴影来模拟质感。
+              background: themeStyles.bubbleBg,
               // backdropFilter: "blur(30px)", // 无效，留着也没用
               borderRadius: "18px",
               padding: "16px",
-              boxShadow:
-                "0 20px 50px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.1)",
+              boxShadow: themeStyles.bubbleShadow,
               display: "flex",
               flexDirection: "column",
               gap: "12px",
               animation: "premiumPop 0.35s cubic-bezier(0.1, 0.9, 0.2, 1)",
               zIndex: 1000,
-              color: "#ffffff",
+              color: themeStyles.textPrimary,
               pointerEvents: "auto",
               fontFamily: '"SF Pro Display", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
+              userSelect: "none",
             }}
           >
             {/* Tag Input Overlay Removed */}
@@ -390,99 +532,145 @@ const Pet = () => {
             >
               <div style={{ width: 4, height: 16, borderRadius: 2, background: accent }}></div>
               <span
-                style={{ fontSize: "0.85rem", fontWeight: 700, letterSpacing: "0.3px", color: "rgba(255,255,255,0.9)" }}
+                style={{ fontSize: "0.85rem", fontWeight: 700, letterSpacing: "0.3px", color: themeStyles.textPrimary }}
               >
                 快速记事
               </span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
-              {visibleTags.map((tag, idx) => (
-                <button
-                  key={tag.name}
-                  onClick={() => handleQuickAction(tag.name)}
-                  style={{
-                    background: "rgba(255,255,255,0.06)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: "14px",
-                    padding: "12px 6px",
-                    color: "rgba(255,255,255,0.9)",
-                    fontSize: "0.75rem",
-                    cursor: "pointer",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px",
-                    transition: "all 0.2s",
-                    animation: `fadeUpIn 0.25s ease forwards ${idx * 0.04}s`,
-                    opacity: 0,
-                    transform: "translateY(8px)",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = tag.color + "20";
-                    e.currentTarget.style.borderColor = tag.color;
-                    e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "rgba(255,255,255,0.06)";
-                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
-                    e.currentTarget.style.transform = "translateY(0) scale(1)";
-                  }}
-                >
-                  <div style={{ color: tag.color }}>{tag.icon}</div>
-                  <span style={{ fontWeight: 600 }}>{tag.name}</span>
-                </button>
-              ))}
-              {/* + 按钮 (跳转设置) */}
-              <button
-                onClick={() => {
-                  if (window.electronAPI) window.electronAPI.send("open-settings-tags");
-                  closeMenu();
-                }}
+            <div
+              onWheel={(e) => {
+                if (totalPages <= 1) return;
+                if (e.deltaY < 0) {
+                  const next = (tagPage + 1) % totalPages;
+                  handlePageChange(next, "next");
+                } else {
+                  const prev = (tagPage - 1 + totalPages) % totalPages;
+                  handlePageChange(prev, "prev");
+                }
+              }}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gridTemplateRows: "repeat(2, 60px)", // Fixed row height
+                gap: "8px",
+                position: "relative",
+                height: "128px", // Fixed container height (60*2 + gap)
+                padding: "4px",
+                overflow: "visible",
+              }}
+            >
+              <div
+                key={tagPage}
                 style={{
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px dashed rgba(255,255,255,0.15)",
-                  borderRadius: "14px",
-                  padding: "12px 6px",
-                  color: "rgba(255,255,255,0.4)",
-                  fontSize: "0.75rem",
-                  cursor: "pointer",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "6px",
-                  transition: "all 0.2s",
-                  animation: `fadeUpIn 0.25s ease forwards ${visibleTags.length * 0.04}s`,
-                  opacity: 0,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)";
-                  e.currentTarget.style.color = "rgba(255,255,255,0.8)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.03)";
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
-                  e.currentTarget.style.color = "rgba(255,255,255,0.4)";
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gridTemplateRows: "repeat(2, 60px)", // Keep rows fixed inside
+                  gap: "8px",
+                  gridColumn: "1 / span 3",
+                  animation: `${slideAnim} 0.35s cubic-bezier(0.1, 0.9, 0.2, 1)`,
                 }}
               >
-                <Plus size={16} />
-                <span style={{ fontWeight: 500 }}>管理</span>
-              </button>
+                {currentTags.map((tag) => (
+                  <button
+                    key={tag.name}
+                    onClick={() => handleQuickAction(tag.name)}
+                    style={{
+                      background: themeStyles.btnBg,
+                      border: `1px solid ${themeStyles.btnBorder}`,
+                      borderRadius: "12px",
+                      padding: "4px", // Minimal padding due to fixed size
+                      height: "60px", // Fixed height
+                      width: "100%", // Use grid width
+                      color: themeStyles.btnText,
+                      fontSize: "0.75rem",
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "2px",
+                      transition: "all 0.2s",
+                      boxSizing: "border-box",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = tag.color + "20";
+                      e.currentTarget.style.borderColor = tag.color;
+                      e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = themeStyles.btnBg;
+                      e.currentTarget.style.borderColor = themeStyles.btnBorder;
+                      e.currentTarget.style.transform = "translateY(0) scale(1)";
+                    }}
+                  >
+                    <div style={{ color: tag.color }}>{tag.icon}</div>
+                    <span style={{ fontWeight: 600 }}>{tag.name}</span>
+                  </button>
+                ))}
+                {/* 管理按钮放在最后一页的空位或是独立控制 */}
+                {tagPage === totalPages - 1 && currentTags.length < 6 && (
+                  <button
+                    onClick={() => {
+                      if (window.electronAPI) window.electronAPI.send("open-settings-tags");
+                      closeMenu();
+                    }}
+                    style={{
+                      background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
+                      border: isDark ? "1px dashed rgba(255,255,255,0.15)" : "1px dashed rgba(0,0,0,0.1)",
+                      borderRadius: "12px",
+                      padding: "4px",
+                      height: "60px", // Fixed height to match tags
+                      width: "100%",
+                      color: themeStyles.textSecondary,
+                      fontSize: "0.75rem",
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "2px",
+                      transition: "all 0.2s",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <Plus size={16} />
+                    <span style={{ fontWeight: 500 }}>管理</span>
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Pagination Dots */}
+            {totalPages > 1 && (
+              <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginTop: "-4px" }}>
+                {Array.from({ length: totalPages }).map((_, i) => (
+                  <div
+                    key={i}
+                    onClick={() => handlePageChange(i)}
+                    style={{
+                      width: i === tagPage ? "12px" : "6px",
+                      height: "6px",
+                      borderRadius: "3px",
+                      background: i === tagPage ? accent : themeStyles.btnBorder,
+                      transition: "all 0.3s",
+                      cursor: "pointer",
+                    }}
+                  ></div>
+                ))}
+              </div>
+            )}
 
             <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
               <button
                 onClick={handleDetailedRecord}
                 style={{
                   flex: 1,
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: themeStyles.btnBg,
+                  border: `1px solid ${themeStyles.btnBorder}`,
                   borderRadius: "12px",
                   padding: "10px",
-                  color: "white",
+                  color: themeStyles.textPrimary,
                   fontSize: "0.8rem",
                   fontWeight: 600,
                   cursor: "pointer",
@@ -491,26 +679,23 @@ const Pet = () => {
                   justifyContent: "center",
                   gap: "6px",
                   transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.15)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.08)";
                 }}
               >
                 <Edit3 size={14} />
                 详细记录
               </button>
               <button
-                onClick={handleOpenDashboard}
+                className="bubble-item"
+                onClick={handleStop}
+                title="停止当前任务"
+                disabled={currentStatus === "空闲"}
                 style={{
                   flex: 1,
-                  background: accent,
-                  border: "none",
+                  background: themeStyles.btnBg,
+                  border: `1px solid ${themeStyles.btnBorder}`,
                   borderRadius: "12px",
                   padding: "10px",
-                  color: "white",
+                  color: themeStyles.textPrimary,
                   fontSize: "0.8rem",
                   fontWeight: 600,
                   cursor: "pointer",
@@ -518,16 +703,37 @@ const Pet = () => {
                   alignItems: "center",
                   justifyContent: "center",
                   gap: "6px",
-                  boxShadow: `0 4px 12px ${accent}50`,
                   transition: "all 0.2s",
+                  opacity: currentStatus === "空闲" ? 0.5 : 1,
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.15)")}
-                onMouseLeave={(e) => (e.currentTarget.style.filter = "brightness(1)")}
               >
-                <Layout size={14} />
-                主面板
+                <Square size={14} />
+                停止
               </button>
             </div>
+            <button
+              onClick={handleOpenDashboard}
+              style={{
+                width: "100%",
+                background: accent,
+                border: "none",
+                borderRadius: "12px",
+                padding: "10px",
+                color: "white",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                boxShadow: `0 4px 12px ${accent}50`,
+                transition: "all 0.2s",
+              }}
+            >
+              <Layout size={14} />
+              主面板
+            </button>
 
             {/* Bubble Tail */}
             <div
@@ -537,9 +743,9 @@ const Pet = () => {
                 ...(menuPosition === "left" ? { left: "48px" } : { right: "48px" }),
                 width: "14px",
                 height: "14px",
-                background: "rgba(28, 28, 28, 0.60)", // Match bubble bg
+                background: themeStyles.bubbleBg, // Match bubble bg
                 transform: "rotate(45deg)",
-                boxShadow: "2px 2px 4px rgba(0,0,0,0.4)",
+                boxShadow: "2px 2px 4px rgba(0,0,0,0.1)",
                 zIndex: -1,
               }}
             ></div>
@@ -560,8 +766,10 @@ const Pet = () => {
               // 暗色适配：减少白边亮度
               boxShadow:
                 showMenu ?
-                  `0 0 0 3px rgba(255,255,255,0.15), 0 16px 40px ${accent}40`
-                : `0 8px 30px rgba(0,0,0,0.5), 0 0 0 2px rgba(255,255,255,0.3)`,
+                  isDark ? `0 0 0 3px rgba(255,255,255,0.15), 0 16px 40px ${accent}40`
+                  : `0 0 0 3px rgba(0,0,0,0.05), 0 16px 40px ${accent}30`
+                : isDark ? `0 8px 30px rgba(0,0,0,0.5), 0 0 0 2px rgba(255,255,255,0.3)`
+                : `0 8px 25px rgba(0,0,0,0.15), 0 0 0 2px rgba(255,255,255,0.8)`,
               cursor: isDragging ? "grabbing" : "pointer",
               transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
               userSelect: "none",
@@ -588,7 +796,7 @@ const Pet = () => {
                   fontSize: 11,
                   boxShadow: "0 3px 10px rgba(0,0,0,0.4)",
                   animation: "scaleIn 0.25s",
-                  border: "2px solid rgba(28,28,28,0.8)", // 暗色适配
+                  border: isDark ? "2px solid rgba(28,28,28,0.8)" : "2px solid rgba(255,255,255,0.9)",
                 }}
               >
                 <X size={12} strokeWidth={3} />
@@ -622,8 +830,8 @@ const Pet = () => {
                 top: "58px",
                 left: "50%",
                 transform: "translateX(-50%)",
-                background: "rgba(0, 0, 0, 0.7)",
-                color: "white",
+                background: isDark ? "rgba(0, 0, 0, 0.7)" : "rgba(255, 255, 255, 0.7)",
+                color: isDark ? "white" : "#333",
                 padding: "4px 12px",
                 borderRadius: "12px",
                 fontSize: "0.75rem",
@@ -659,6 +867,14 @@ const Pet = () => {
           @keyframes scaleIn {
             from { transform: scale(0); }
             to { transform: scale(1); }
+          }
+          @keyframes slideInFromRight {
+            from { opacity: 0; transform: translateX(24px); }
+            to { opacity: 1; transform: translateX(0); }
+          }
+          @keyframes slideInFromLeft {
+            from { opacity: 0; transform: translateX(-24px); }
+            to { opacity: 1; transform: translateX(0); }
           }
           .pet-avatar:hover { 
             transform: scale(1.08) translateY(-3px); 

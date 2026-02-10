@@ -3,9 +3,9 @@ import { Image as ImageIcon, Upload, Sparkles, Target, Brain, Coffee, Clock, Lis
 import InputWithClear from "./InputWithClear";
 import { APP_CONFIG } from "../../config";
 
-const TagEditModal = ({ editingTag, setEditingTag, onSave }) => {
+const TagEditModal = ({ editingTag, setEditingTag, onSave, settings }) => {
   const tagIconFileRef = useRef(null);
-  const [tab, setTab] = useState("basic"); // basic | appearance
+  const [tab, setTab] = useState(editingTag?.isIdle ? "appearance" : "basic"); // basic | appearance
 
   if (!editingTag) return null;
 
@@ -29,7 +29,7 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave }) => {
       }}
     >
       <div
-        className="win11-card"
+        className={`win11-card ${settings?.win12Experimental ? "win12-experimental" : ""}`}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: 380,
@@ -39,31 +39,40 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave }) => {
           animation: "modalScaleIn 0.25s cubic-bezier(0.1, 0.9, 0.2, 1)",
           overflow: "hidden",
           maxHeight: "85vh",
-          boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
-          borderRadius: 12,
-          backdropFilter: "blur(20px)",
-          backgroundColor: "color-mix(in srgb, var(--card-bg), transparent 15%)",
+          backdropFilter: settings?.win12Experimental ? "saturate(200%)" : "blur(50px) saturate(180%)",
+          backgroundColor: settings?.win12Experimental ? "var(--win12-tint)" : "var(--bg-active)",
           backgroundImage:
-            "linear-gradient(to bottom right, transparent, color-mix(in srgb, var(--accent), transparent 90%))",
+            settings?.win12Experimental ? "none" : (
+              "linear-gradient(to bottom right, transparent, color-mix(in srgb, var(--accent), transparent 90%))"
+            ),
           border: "1px solid var(--border-color)",
+          boxShadow: "0 20px 50px rgba(0,0,0,0.25), 0 0 0 1px inset rgba(255, 255, 255, 0.1)",
         }}
       >
         {/* Header */}
         <div
           style={{
-            padding: "16px 20px",
+            padding: "6px 20px",
             borderBottom: "1px solid var(--border-color)",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
           }}
         >
-          <h3 className="title" style={{ fontSize: "1rem", margin: 0 }}>
-            {editingTag.index !== undefined ? "编辑标签" : "添加新标签"}
+          <h3
+            className="title"
+            style={{ fontSize: "0.9rem", margin: 0, color: editingTag.isIdle ? "var(--accent)" : "inherit" }}
+          >
+            {editingTag.isIdle ?
+              "设置空闲状态形象"
+            : editingTag.index !== undefined ?
+              "编辑标签"
+            : "添加新标签"}
           </h3>
           <div style={{ display: "flex", background: "var(--bg-secondary)", borderRadius: 6, padding: 2 }}>
             <button
               onClick={() => setTab("basic")}
+              disabled={editingTag.isIdle}
               style={{
                 padding: "2px 10px",
                 borderRadius: 4,
@@ -71,16 +80,17 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave }) => {
                 background: tab === "basic" ? "var(--card-bg)" : "transparent",
                 boxShadow: tab === "basic" ? "0 1px 2px rgba(0,0,0,0.1)" : "none",
                 fontSize: "0.75rem",
-                cursor: "pointer",
+                cursor: editingTag.isIdle ? "not-allowed" : "pointer",
                 color: tab === "basic" ? "var(--text-primary)" : "var(--text-secondary)",
                 transition: "all 0.2s",
+                opacity: editingTag.isIdle ? 0.5 : 1,
               }}
             >
               基础
             </button>
             <button
               onClick={() => setTab("appearance")}
-              disabled={!editingTag.name?.trim()}
+              disabled={!editingTag.isIdle && !editingTag.name?.trim()}
               style={{
                 padding: "2px 10px",
                 borderRadius: 4,
@@ -88,9 +98,9 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave }) => {
                 background: tab === "appearance" ? "var(--card-bg)" : "transparent",
                 boxShadow: tab === "appearance" ? "0 1px 2px rgba(0,0,0,0.1)" : "none",
                 fontSize: "0.75rem",
-                cursor: !editingTag.name?.trim() ? "not-allowed" : "pointer",
+                cursor: !editingTag.isIdle && !editingTag.name?.trim() ? "not-allowed" : "pointer",
                 color: tab === "appearance" ? "var(--text-primary)" : "var(--text-secondary)",
-                opacity: !editingTag.name?.trim() ? 0.5 : 1,
+                opacity: !editingTag.isIdle && !editingTag.name?.trim() ? 0.5 : 1,
                 transition: "all 0.2s",
               }}
             >
@@ -385,25 +395,56 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave }) => {
                       position: "relative",
                     }}
                   >
-                    {editingTag.petIcon ?
-                      <img
-                        src={editingTag.petIcon}
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        onError={(e) => {
-                          e.target.style.display = "none";
-                          // Show fallback
-                          e.target.parentElement.style.backgroundImage = 'url("icon_moyu.png")';
-                          e.target.parentElement.style.backgroundSize = "cover";
-                        }}
-                      />
-                    : <img
-                        src="icon_base.png" // Default fallback
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        onError={(e) => {
-                          e.target.src = "icon_moyu.png";
-                        }}
-                      />
-                    }
+                    {(() => {
+                      // Use the same logic as TagList to determine the current pet icon
+                      let currentPetIcon = null;
+                      const preset = settings?.petPreset || "apple";
+                      const appearance = settings?.appearance || {};
+                      const overrides = appearance[preset] || {};
+
+                      if (editingTag.petIcon) {
+                        currentPetIcon = editingTag.petIcon;
+                      } else if (settings) {
+                        // Preset-specific override
+                        if (editingTag.isIdle && overrides["Idle"]) currentPetIcon = overrides["Idle"];
+                        else if (overrides[editingTag.name]) currentPetIcon = overrides[editingTag.name];
+                        // Legacy global overrides
+                        else if (editingTag.name === "工作" && settings.petIconWork)
+                          currentPetIcon = settings.petIconWork;
+                        else if (editingTag.name === "学习" && settings.petIconStudy)
+                          currentPetIcon = settings.petIconStudy;
+                        else if (editingTag.name === "休息" && settings.petIconRest)
+                          currentPetIcon = settings.petIconRest;
+                        else if (editingTag.name === "摸鱼" && settings.petIconMoyu)
+                          currentPetIcon = settings.petIconMoyu;
+                        else if (editingTag.isIdle && settings.petIconPath) currentPetIcon = settings.petIconPath;
+                      }
+
+                      // Suffix based on preset
+                      const suffix = preset === "manbo" ? "_mb" : "";
+
+                      // Fallback for default tags if not overridden
+                      if (!currentPetIcon) {
+                        if (editingTag.name === "工作") currentPetIcon = `icon_work${suffix}.png`;
+                        else if (editingTag.name === "学习") currentPetIcon = `icon_study${suffix}.png`;
+                        else if (editingTag.name === "休息") currentPetIcon = `icon_rest${suffix}.png`;
+                        else if (editingTag.name === "摸鱼") currentPetIcon = `icon_moyu${suffix}.png`;
+                        else currentPetIcon = `icon_base${suffix}.png`;
+                      }
+
+                      return (
+                        <img
+                          src={currentPetIcon}
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          onError={(e) => {
+                            const fallback = `icon_base${suffix}.png`;
+                            if (e.target.src.indexOf(fallback) === -1) {
+                              e.target.src = fallback;
+                            }
+                          }}
+                        />
+                      );
+                    })()}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600, fontSize: "0.9rem", marginBottom: 4 }}>桌宠形象 (可选)</div>
@@ -412,7 +453,6 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave }) => {
                     </div>
                   </div>
                 </div>
-
                 <div style={{ display: "flex", gap: 8 }}>
                   <label
                     className="btn primary"
@@ -421,10 +461,14 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave }) => {
                       padding: "8px 0",
                       fontSize: "0.9rem",
                       cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
                       justifyContent: "center",
+                      gap: 6,
                     }}
                   >
-                    <Upload size={16} style={{ marginRight: 8 }} /> 上传形象图片
+                    <Upload size={16} />
+                    选择图片
                     <input
                       type="file"
                       accept="image/*"
@@ -439,7 +483,27 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave }) => {
                       }}
                     />
                   </label>
-                  {/* AI Generation button removed */}
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      if (editingTag.isIdle) {
+                        setEditingTag({ ...editingTag, petIcon: "icon_base.png" });
+                      } else {
+                        setEditingTag({ ...editingTag, petIcon: null });
+                      }
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      fontSize: "0.85rem",
+                      background: "rgba(0,0,0,0.05)",
+                      color: "var(--text-secondary)",
+                      border: "1px solid var(--border-color)",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                    }}
+                  >
+                    恢复默认
+                  </button>
                 </div>
               </div>
             </div>
@@ -454,7 +518,7 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave }) => {
             display: "flex",
             justifyContent: "flex-end",
             gap: 12,
-            background: "rgba(128,128,128,0.02)",
+            background: "transparent",
           }}
         >
           <button className="btn" onClick={() => setEditingTag(null)} style={{ background: "var(--bg-secondary)" }}>

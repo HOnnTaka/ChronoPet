@@ -14,6 +14,8 @@ export default function StatsView({
   timeFilter,
   handleFilterClick,
   hasDateRange,
+  dateRange,
+  setDateRange,
   accent,
   settings,
   defaultTags,
@@ -23,47 +25,116 @@ export default function StatsView({
   return (
     <div style={{ width: "100%", margin: "0 auto", paddingBottom: 40, userSelect: "text" }}>
       {/* Filter Bar */}
-      <div style={{ marginBottom: 24, display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-        <FilterButton
-          id="all"
-          label="全部"
-          activeId={timeFilter}
-          hasDateRange={hasDateRange}
-          onClick={handleFilterClick}
-          accent={accent}
-        />
-        <FilterButton
-          id="today"
-          label="今天"
-          activeId={timeFilter}
-          hasDateRange={hasDateRange}
-          onClick={handleFilterClick}
-          accent={accent}
-        />
-        <FilterButton
-          id="yesterday"
-          label="昨天"
-          activeId={timeFilter}
-          hasDateRange={hasDateRange}
-          onClick={handleFilterClick}
-          accent={accent}
-        />
-        <FilterButton
-          id="week"
-          label="本周"
-          activeId={timeFilter}
-          hasDateRange={hasDateRange}
-          onClick={handleFilterClick}
-          accent={accent}
-        />
-        <FilterButton
-          id="month"
-          label="本月"
-          activeId={timeFilter}
-          hasDateRange={hasDateRange}
-          onClick={handleFilterClick}
-          accent={accent}
-        />
+      <div className="win11-card" style={{ padding: "12px 16px", marginBottom: 24 }}>
+        <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+          <FilterButton
+            id="all"
+            label="全部"
+            activeId={timeFilter}
+            hasDateRange={hasDateRange}
+            onClick={handleFilterClick}
+            accent={accent}
+          />
+          <FilterButton
+            id="today"
+            label="今天"
+            activeId={timeFilter}
+            hasDateRange={hasDateRange}
+            onClick={handleFilterClick}
+            accent={accent}
+          />
+          <FilterButton
+            id="yesterday"
+            label="昨天"
+            activeId={timeFilter}
+            hasDateRange={hasDateRange}
+            onClick={handleFilterClick}
+            accent={accent}
+          />
+          <FilterButton
+            id="week"
+            label="本周"
+            activeId={timeFilter}
+            hasDateRange={hasDateRange}
+            onClick={handleFilterClick}
+            accent={accent}
+          />
+          <FilterButton
+            id="month"
+            label="本月"
+            activeId={timeFilter}
+            hasDateRange={hasDateRange}
+            onClick={handleFilterClick}
+            accent={accent}
+          />
+          <FilterButton
+            id="custom"
+            label="自定义"
+            activeId={timeFilter}
+            hasDateRange={hasDateRange}
+            onClick={handleFilterClick}
+            accent={accent}
+          />
+        </div>
+
+        {/* 日期范围选择 */}
+        {(timeFilter === "custom" || hasDateRange) && (
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              justifyContent: "center",
+              marginTop: 12,
+              paddingTop: 12,
+              borderTop: "1px solid var(--border-color)",
+              animation: "fadeIn 0.3s ease-out",
+            }}
+          >
+            <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>日期范围:</span>
+            <input
+              type="date"
+              value={dateRange.start}
+              onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
+              style={{
+                margin: 0,
+                padding: "6px 10px",
+                background: "var(--card-bg)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border-color)",
+                borderRadius: 4,
+                width: 130,
+                fontSize: "0.85rem",
+              }}
+            />
+            <span style={{ color: "var(--text-secondary)" }}>至</span>
+            <input
+              type="date"
+              value={dateRange.end}
+              onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
+              style={{
+                margin: 0,
+                padding: "6px 10px",
+                background: "var(--card-bg)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border-color)",
+                borderRadius: 4,
+                width: 130,
+                fontSize: "0.85rem",
+              }}
+            />
+            {(dateRange.start || dateRange.end) && (
+              <button
+                className="btn"
+                onClick={() => setDateRange({ start: "", end: "" })}
+                title="清除日期范围"
+                style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+              >
+                清除
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Top Metrics Grid - Responsive */}

@@ -17,6 +17,7 @@ const TabButton = ({ id, label, icon: Icon, activeId, onClick }) => (
       cursor: "pointer",
       transition: "all 0.2s",
       fontWeight: activeId === id ? 500 : 400,
+      userSelect: "none",
     }}
   >
     <Icon size={16} style={{ color: activeId === id ? "var(--accent)" : "var(--text-secondary)" }} />

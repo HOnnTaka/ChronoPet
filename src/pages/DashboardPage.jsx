@@ -45,6 +45,10 @@ import StatsView from "../components/dashboard/StatsView";
 import TimelineView from "../components/dashboard/TimelineView";
 import ChatView from "../components/dashboard/ChatView";
 import TagsView from "../components/dashboard/TagsView";
+import ImageGallery from "../components/dashboard/ImageGallery";
+import Win11Dialog from "../components/dashboard/Win11Dialog";
+
+const BUILTIN_MODELS = ["moonshotai/Kimi-K2.5", "Qwen/Qwen3-VL-235B-A22B-Instruct"];
 
 const LiveClock = () => {
   const [time, setTime] = useState(() => new Date());
@@ -92,6 +96,25 @@ export default function DashboardPage() {
   const [aiSummaryResult, setAiSummaryResult] = useState("");
   const [loadingRecordIds, setLoadingRecordIds] = useState(new Set());
   const [editingTag, setEditingTag] = useState(null);
+  const [galleryState, setGalleryState] = useState({ open: false, images: [], index: 0 });
+  const [dialog, setDialog] = useState({
+    open: false,
+    title: "",
+    message: "",
+    showCancel: false,
+    onConfirm: null,
+  });
+  const [isDark, setIsDark] = useState(true);
+
+  const showCustomAlert = useCallback((title, message, options = {}) => {
+    setDialog({
+      open: true,
+      title,
+      message,
+      showCancel: options.showCancel || false,
+      onConfirm: options.onConfirm || null,
+    });
+  }, []);
 
   const tagsSectionRef = useRef(null);
   const chatEndRef = useRef(null);
@@ -115,7 +138,7 @@ export default function DashboardPage() {
         const d = new Date(r.timestamp);
         return d >= start && d <= end;
       });
-    } else if (timeFilter !== "all") {
+    } else if (timeFilter !== "all" && timeFilter !== "custom") {
       if (timeFilter === "today") {
         filtered = filtered.filter((r) => new Date(r.timestamp) >= today);
       } else if (timeFilter === "yesterday") {
@@ -137,6 +160,14 @@ export default function DashboardPage() {
     return filtered;
   }, [records, dateRange, timeFilter]);
 
+  // Watchdog for AI loading state
+  useEffect(() => {
+    if (aiSummaryLoading && loadingRecordIds.size === 0) {
+      const t = setTimeout(() => setAiSummaryLoading(false), 500);
+      return () => clearTimeout(t);
+    }
+  }, [loadingRecordIds.size, aiSummaryLoading]);
+
   useEffect(() => {
     const onFocus = () => setIsFocused(true);
     const onBlur = () => setIsFocused(false);
@@ -148,35 +179,39 @@ export default function DashboardPage() {
     // Listen for system color changes
     if (window.electronAPI) {
       window.electronAPI.invoke("get-system-colors").then((c) => {
-        if (c && c.accent) {
-          const hex = "#" + c.accent;
-          setAccent(hex);
-          document.documentElement.style.setProperty("--accent", hex);
+        if (c) {
+          if (c.accent) setAccent("#" + c.accent);
+          if (c.isDark !== undefined) setIsDark(c.isDark);
         }
       });
+
+      cleanups.push(
+        window.electronAPI.receive("theme-updated", (data) => {
+          if (data.accent) setAccent("#" + data.accent);
+          if (data.isDark !== undefined) setIsDark(data.isDark);
+        }),
+      );
 
       // Listen for new records from main process
       cleanups.push(
         window.electronAPI.receive("new-record-saved", (record) => {
-          setRecords((prev) => [record, ...prev]);
+          setRecords((prev) => [...prev, record].sort((a, b) => b.id - a.id));
         }),
       );
 
       // AI Summary Response
       cleanups.push(
         window.electronAPI.receive("ai-summary-response", (result) => {
-          setAiSummaryLoading(false);
-
           if (result.recordId) {
             // 处理单个记录的 AI 总结
             setLoadingRecordIds((prev) => {
               const next = new Set(prev);
               next.delete(result.recordId);
+              // 只有当待处理列表真正为空时负责关闭状态
               return next;
             });
 
             if (result.success) {
-              // 解析输出内容（第一行标题，第二行描述）
               const lines = result.summary.split("\n").filter((l) => l.trim());
               if (lines.length > 0) {
                 const taskName = lines[0].trim();
@@ -189,14 +224,14 @@ export default function DashboardPage() {
                 });
               }
             } else {
-              alert("单个事件总结失败: " + result.error);
+              console.error("单个事件总结失败: " + result.error);
             }
           } else {
-            // 处理全局总结
+            setAiSummaryLoading(false);
             if (result.success) {
               setAiSummaryResult(result.summary);
             } else {
-              alert("AI总结失败: " + result.error);
+              showCustomAlert("AI总结失败", result.error);
             }
           }
         }),
@@ -210,7 +245,7 @@ export default function DashboardPage() {
     const loadRecords = async () => {
       if (window.electronAPI) {
         const data = await window.electronAPI.invoke("get-records");
-        setRecords(data ? data.reverse() : []);
+        setRecords(data ? data.sort((a, b) => b.id - a.id) : []);
       }
     };
     loadRecords();
@@ -220,6 +255,11 @@ export default function DashboardPage() {
       cleanups.push(
         window.electronAPI.receive("switch-tab", (tab) => {
           setView(tab);
+        }),
+      );
+      cleanups.push(
+        window.electronAPI.receive("settings-updated", (newSettings) => {
+          setSettings(newSettings);
         }),
       );
       cleanups.push(
@@ -272,7 +312,7 @@ export default function DashboardPage() {
       window.removeEventListener("blur", onBlur);
       cleanups.forEach((fn) => fn && fn());
     };
-  }, []);
+  }, [showCustomAlert]);
 
   // 监听粘贴事件，仅在编辑弹窗打开时处理
   useEffect(() => {
@@ -300,11 +340,15 @@ export default function DashboardPage() {
     return () => document.removeEventListener("paste", handlePaste);
   }, [editingRecord]);
 
-  const saveSettings = (newSet) => {
-    const up = { ...settings, ...newSet };
-    setSettings(up);
-    if (window.electronAPI) window.electronAPI.send("save-settings", up);
-  };
+  const saveSettings = useCallback((newSet) => {
+    // 1. Update local UI state immediately for responsiveness
+    setSettings((prev) => ({ ...prev, ...newSet }));
+
+    // 2. ONLY send the delta to main process to prevent heavy OS operations
+    if (window.electronAPI) {
+      window.electronAPI.send("save-settings", newSet);
+    }
+  }, []);
 
   const handleSendChat = () => {
     if (!inputMsg.trim()) return;
@@ -327,7 +371,10 @@ export default function DashboardPage() {
             hour: "2-digit",
             minute: "2-digit",
           });
-          return `[${timeStr}] ${r.task} (${r.duration}m) ${r.tags ? r.tags.join(",") : ""} ${r.desc || ""}`;
+          const d = r.duration || 0;
+          const isSeconds = r.id > 1739015400000 || d > 1200; // 1200m is 20h, unlikely for old records
+          const durationLabel = isSeconds ? `${Math.round(d / 60)}m` : `${d}m`;
+          return `[${timeStr}] ${r.task} (${durationLabel}) ${r.tags ? r.tags.join(",") : ""} ${r.desc || ""}`;
         })
         .join("\n");
 
@@ -360,26 +407,13 @@ export default function DashboardPage() {
     }
   };
 
-  const handleAddEvent = () => {
-    setEditingRecord({
-      id: Date.now(),
-      timestamp: new Date().toISOString(),
-      task: "",
-      desc: "",
-      duration: 30,
-      tags: [],
-      screenshots: [],
-      isNew: true,
-    });
-  };
-
-  const handleInsertGap = (startTime) => {
+  const handleInsertGap = (startTime, durationS) => {
     setEditingRecord({
       id: startTime,
       timestamp: new Date(startTime).toISOString(),
       task: "",
       desc: "",
-      duration: 30,
+      duration: durationS !== undefined ? durationS : 1800, // Defualt to gap duration or 30m
       tags: [],
       screenshots: [],
       isNew: true,
@@ -388,35 +422,64 @@ export default function DashboardPage() {
 
   const handleSaveEdit = () => {
     if (window.electronAPI && editingRecord) {
-      if (editingRecord.isNew) {
-        const recordToSave = { ...editingRecord };
-        delete recordToSave.isNew;
-        window.electronAPI.send("save-record", recordToSave);
+      // Overlap Detection Logic
+      const currentStart = editingRecord.id;
+      const getDurationS = (r) =>
+        r.id > 1739015400000 || (r.duration || 0) > 3600 ? r.duration || 0 : (r.duration || 0) * 60;
+      const currentDurationS = getDurationS(editingRecord);
+      const currentEnd = currentStart + currentDurationS * 1000;
+
+      // Check if this record overlaps with any LATER record
+      const overlappingRecord = records.find((r) => {
+        if (r.id === editingRecord.id) return false; // Ignore self
+        return r.id > currentStart && r.id < currentEnd;
+      });
+
+      const performSave = () => {
+        if (editingRecord.isNew) {
+          const recordToSave = { ...editingRecord };
+          delete recordToSave.isNew;
+          window.electronAPI.send("save-record", recordToSave);
+        } else {
+          window.electronAPI.send("update-record", editingRecord);
+        }
+        setEditingRecord(null);
+      };
+
+      if (overlappingRecord) {
+        showCustomAlert("时间冲突提醒", "该任务的时长可能覆盖了后续已有的任务，确定要强制保存吗？", {
+          showCancel: true,
+          onConfirm: performSave,
+        });
       } else {
-        window.electronAPI.send("update-record", editingRecord);
+        performSave();
       }
-      setEditingRecord(null);
     }
   };
 
-  const handleDeleteRecord = (record) => {
+  const handleDeleteRecord = useCallback((record) => {
     setRecords((prev) => prev.filter((r) => r.id !== record.id));
     if (window.electronAPI) {
       window.electronAPI.send("delete-record", record.id);
     }
-  };
+  }, []);
 
   // confirmDelete removed as RecordCard handles confirmation
 
-  const handleFilterClick = (id) => {
+  const handleFilterClick = useCallback((id) => {
     setTimeFilter(id);
     setDateRange({ start: "", end: "" });
-  };
+  }, []);
 
   const handleAiSummary = () => {
     const filtered = getFilteredRecords();
     if (filtered.length === 0) {
-      alert("当前范围内无记录可总结");
+      showCustomAlert("提示", "当前范围内无记录可总结");
+      return;
+    }
+
+    if (!settings.aiApiKey && !BUILTIN_MODELS.includes(settings.aiModel)) {
+      showCustomAlert("API 密钥缺失", "使用 AI 功能需要配置 API 密钥");
       return;
     }
 
@@ -456,18 +519,38 @@ export default function DashboardPage() {
   const handleExport = () => {
     const filtered = getFilteredRecords();
     if (filtered.length === 0) {
-      alert("暂无数据可导出");
+      showCustomAlert("导出提示", "暂无数据可导出");
       return;
     }
-    const exportData = filtered.map((r) => ({
-      时间: new Date(r.timestamp).toLocaleString("zh-CN"),
-      任务: r.task,
-      时长: `${r.duration || 0}分钟`,
-      标签: (r.tags || []).join(", "),
-      详情: r.desc || "",
-    }));
 
-    let csvContent = "\uFEFF";
+    const formatDur = (seconds) => {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      return `${h > 0 ? h + "小时" : ""}${m}分${s}秒`;
+    };
+
+    const exportData = filtered.map((r) => {
+      const startTime = new Date(r.timestamp);
+      // Heuristic for duration unit
+      const durationS = r.id > 1739015400000 || (r.duration || 0) > 3600 ? r.duration || 0 : (r.duration || 0) * 60;
+      const endTime = new Date(startTime.getTime() + durationS * 1000);
+
+      const fTime = (d) => d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      const fDate = (d) => d.toLocaleDateString("zh-CN");
+
+      return {
+        日期: fDate(startTime),
+        开始时间: fTime(startTime),
+        结束时间: fTime(endTime),
+        持续时长: formatDur(durationS),
+        记录任务: r.task || "未命名",
+        具体标签: (r.tags || []).join("; "),
+        详细说明: (r.desc || "").replace(/\n/g, " "),
+      };
+    });
+
+    let csvContent = "\uFEFF"; // UTF-8 BOM
     csvContent += Object.keys(exportData[0]).join(",") + "\n";
     exportData.forEach((row) => {
       csvContent +=
@@ -480,10 +563,20 @@ export default function DashboardPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `chronopet_export_${new Date().toISOString().split("T")[0]}.csv`;
+    a.download = `ChronoPet_Data_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const defaultTags = useMemo(
+    () => [
+      { name: "工作", color: "#6366f1", iconType: "preset", iconValue: "Target" },
+      { name: "学习", color: "#a855f7", iconType: "preset", iconValue: "Brain" },
+      { name: "摸鱼", color: "#f43f5e", iconType: "preset", iconValue: "Coffee" },
+      { name: "休息", color: "#10b981", iconType: "preset", iconValue: "Clock" },
+    ],
+    [],
+  );
 
   const getStats = useCallback(() => {
     const filtered = getFilteredRecords();
@@ -492,7 +585,15 @@ export default function DashboardPage() {
       (sum, r) => sum + ((r.screenshots?.length || 0) + (r.screenshot ? 1 : 0)),
       0,
     );
-    const totalDuration = filtered.reduce((sum, r) => sum + (r.duration || 0), 0);
+
+    const getDurationS = (record) => {
+      if (!record) return 0;
+      const d = record.duration || 0;
+      if (record.id > 1739015400000 || d > 3600) return d;
+      return d * 60;
+    };
+
+    const totalDurationS = filtered.reduce((sum, r) => sum + getDurationS(r), 0);
 
     const tasksByHour = {};
     filtered.forEach((r) => {
@@ -505,17 +606,26 @@ export default function DashboardPage() {
       : 0;
 
     const tagStats = {};
-    const tagDurationStats = {};
+    const tagDurationStatsS = {};
 
     filtered.forEach((r) => {
-      const duration = r.duration || 0;
+      const durationS = getDurationS(r);
       (r.tags || []).forEach((tag) => {
         tagStats[tag] = (tagStats[tag] || 0) + 1;
-        tagDurationStats[tag] = (tagDurationStats[tag] || 0) + duration;
+        tagDurationStatsS[tag] = (tagDurationStatsS[tag] || 0) + durationS;
       });
     });
 
-    return { totalRecords, totalScreenshots, totalDuration, peakHour, tasksByHour, tagStats, tagDurationStats };
+    return {
+      totalRecords,
+      totalScreenshots,
+      totalDuration: totalDurationS / 60, // UI expects minutes for some legacy calcs, or we adjust UI
+      totalDurationS,
+      peakHour,
+      tasksByHour,
+      tagStats,
+      tagDurationStats: Object.fromEntries(Object.entries(tagDurationStatsS).map(([k, v]) => [k, v / 60])),
+    };
   }, [getFilteredRecords]);
 
   const filteredRecords = useMemo(() => getFilteredRecords(), [getFilteredRecords]);
@@ -523,16 +633,50 @@ export default function DashboardPage() {
   const hasDateRange = Boolean(dateRange.start);
 
   // Tags Management Logic
-  const handleSaveTag = () => {
+  const handleSaveTag = useCallback(() => {
     if (!editingTag || !editingTag.name.trim()) return;
 
-    // Prevent editing default tags
+    if (editingTag.isIdle) {
+      const preset = settings.petPreset || "apple";
+      const appearance = settings.appearance || {};
+      const currentPresetOverride = appearance[preset] || {};
+
+      const newAppearance = {
+        ...appearance,
+        [preset]: {
+          ...currentPresetOverride,
+          Idle: editingTag.petIcon,
+        },
+      };
+      saveSettings({ appearance: newAppearance });
+      setEditingTag(null);
+      // Notify pet window to refresh
+      if (window.electronAPI) window.electronAPI.send("sync-app-icon");
+      return;
+    }
+
+    // For default tags, only allow updating the pet icon
     const defaultNames = ["工作", "学习", "摸鱼", "休息"];
     if (
       defaultNames.includes(editingTag.name) ||
-      (editingTag.index !== undefined && defaultNames.includes(currentTags[editingTag.index]?.name))
+      (editingTag.index !== undefined && defaultNames.includes(settings.tags?.[editingTag.index]?.name))
     ) {
-      alert("系统默认标签不可修改");
+      const preset = settings.petPreset || "apple";
+      const appearance = settings.appearance || {};
+      const currentPresetOverride = appearance[preset] || {};
+
+      const newAppearance = {
+        ...appearance,
+        [preset]: {
+          ...currentPresetOverride,
+          [editingTag.name]: editingTag.petIcon,
+        },
+      };
+
+      saveSettings({ appearance: newAppearance });
+
+      setEditingTag(null);
+      if (window.electronAPI) window.electronAPI.send("sync-app-icon");
       return;
     }
 
@@ -546,7 +690,7 @@ export default function DashboardPage() {
         iconType: editingTag.iconType,
         iconValue: editingTag.iconValue,
         icon: editingTag.icon,
-        petIcon: editingTag.petIcon, // Save petIcon
+        petIcon: editingTag.petIcon,
       };
     } else {
       // Add new
@@ -555,47 +699,38 @@ export default function DashboardPage() {
         color: editingTag.color || "#6366f1",
         iconType: editingTag.iconType || "preset",
         iconValue: editingTag.iconValue || "Target",
-        petIcon: editingTag.petIcon, // Save petIcon
+        petIcon: editingTag.petIcon,
       });
     }
     saveSettings({ tags: newTags });
     setEditingTag(null);
-  };
+  }, [editingTag, settings.tags, settings.petPreset, settings.appearance, saveSettings, defaultTags]);
 
-  const handleDeleteTag = (index) => {
-    const tags = settings.tags && settings.tags.length > 0 ? settings.tags : defaultTags;
-    if (["工作", "学习", "摸鱼", "休息"].includes(tags[index].name)) {
-      alert("系统默认标签不可删除");
-      return;
-    }
-    // TagList handles confirmation UI now, so we just delete.
-    const newTags = [...tags];
-    newTags.splice(index, 1);
-    saveSettings({ tags: newTags });
-  };
+  const handleDeleteTag = useCallback(
+    (index) => {
+      const tags = settings.tags && settings.tags.length > 0 ? settings.tags : defaultTags;
+      if (["工作", "学习", "摸鱼", "休息"].includes(tags[index].name)) {
+        showCustomAlert("操作限制", "系统默认标签不可删除");
+        return;
+      }
+      const newTags = [...tags];
+      newTags.splice(index, 1);
+      saveSettings({ tags: newTags });
+    },
+    [settings.tags, saveSettings, defaultTags, showCustomAlert], // Actually this one STILL USES IT on 693
+  );
 
-  /* const handleGenerateIcon = ... */
-
-  const handleEditTag = (tag, index) => {
+  const handleEditTag = useCallback((tag, index) => {
     setEditingTag({ ...tag, index });
-  };
+  }, []);
 
   const confirmDeleteTag = (tag, index) => {
     handleDeleteTag(index);
   };
 
-  const defaultTags = [
-    { name: "工作", color: "#6366f1", iconType: "preset", iconValue: "Target" },
-    { name: "学习", color: "#a855f7", iconType: "preset", iconValue: "Brain" },
-    { name: "摸鱼", color: "#f43f5e", iconType: "preset", iconValue: "Coffee" },
-    { name: "休息", color: "#10b981", iconType: "preset", iconValue: "Clock" },
-  ];
-
-  const currentTags = settings.tags && settings.tags.length > 0 ? settings.tags : defaultTags;
-
   return (
     <div
-      className={`win-container ${isFocused ? "" : "inactive"}`}
+      className={`win-container ${isFocused ? "" : "inactive"} ${settings.win12Experimental ? "win12-experimental" : ""}`}
       style={{ height: "100vh", display: "flex", flexDirection: "column" }}
     >
       <div
@@ -607,7 +742,11 @@ export default function DashboardPage() {
           borderBottom: "1px solid var(--border-color)",
           justifyContent: "space-between",
           WebkitAppRegion: "drag",
-          background: isFocused ? "rgba(255,255,255,0.05)" : "transparent",
+          background:
+            settings.win12Experimental ? "transparent"
+            : isFocused ? "rgba(255,255,255,0.05)"
+            : "transparent",
+          userSelect: "none",
         }}
       >
         <div
@@ -649,7 +788,10 @@ export default function DashboardPage() {
           padding: "0 16px",
           borderBottom: "1px solid var(--border-color)",
           display: "flex",
-          background: isFocused ? "rgba(255,255,255,0.03)" : "transparent",
+          background:
+            settings.win12Experimental ? "transparent"
+            : isFocused ? "rgba(255,255,255,0.03)"
+            : "transparent",
         }}
       >
         <TabButton id="timeline" label="时间线" icon={Calendar} activeId={view} onClick={setView} accent={accent} />
@@ -670,6 +812,7 @@ export default function DashboardPage() {
       >
         {view === "settings" && (
           <div
+            className="animate-page"
             style={{
               width: "100%",
               maxWidth: "800px",
@@ -679,9 +822,8 @@ export default function DashboardPage() {
               gap: 16,
             }}
           >
-            <div className="win11-card" style={{ padding: 20 }}>
+            <div className="win11-card" style={{ padding: "0 20px 20px 20px" }}>
               <h3 className="title">通用设置</h3>
-              {/* ... existing settings ... */}
               <div
                 style={{
                   display: "flex",
@@ -703,10 +845,174 @@ export default function DashboardPage() {
                   accent={accent}
                 />
               </div>
+
+              {/* Auto Start */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 16,
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 500 }}>开机自启动</div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                    登录 Windows 后自动运行 ChronoPet
+                  </div>
+                </div>
+                <label className="win-toggle">
+                  <input
+                    type="checkbox"
+                    checked={!!settings.autoStart}
+                    onChange={(e) => saveSettings({ autoStart: e.target.checked })}
+                  />
+                  <span className="win-toggle-slider"></span>
+                </label>
+              </div>
+
+              {/* Win12 Experimental */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 16,
+                  marginTop: 16,
+                  paddingTop: 16,
+                  borderTop: "1px solid var(--border-color)",
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 500 }}>Win12 界面模式 (实验性)</div>
+                </div>
+                <label className="win-toggle">
+                  <input
+                    type="checkbox"
+                    checked={!!settings.win12Experimental}
+                    onChange={(e) => saveSettings({ win12Experimental: e.target.checked })}
+                  />
+                  <span className="win-toggle-slider"></span>
+                </label>
+              </div>
             </div>
 
-            <div className="win11-card" style={{ padding: 20 }}>
+            {/* 记录与提醒 */}
+            <div className="win11-card" style={{ padding: "0 20px 20px 20px" }}>
+              <h3 className="title">记录与提醒</h3>
+
+              {/* Quick Record Screenshot Toggle */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 16,
+                  paddingBottom: 16,
+                  borderBottom: "1px solid var(--border-color)",
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 500 }}>快速记录自动截图</div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                    点击悬浮球标签快速记录时是否截取当前屏幕
+                  </div>
+                </div>
+                <label className="win-toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.quickRecordScreenshot !== false}
+                    onChange={(e) => saveSettings({ quickRecordScreenshot: e.target.checked })}
+                  />
+                  <span className="win-toggle-slider"></span>
+                </label>
+              </div>
+
+              {/* Timer Audio Toggle */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: settings.timerEndAudioEnabled !== false ? 16 : 0,
+                  paddingBottom: settings.timerEndAudioEnabled !== false ? 16 : 0,
+                  borderBottom: settings.timerEndAudioEnabled !== false ? "1px solid var(--border-color)" : "none",
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 500 }}>计时结束播放音频</div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                    计时及补记时长结束时播放提示音
+                  </div>
+                </div>
+                <label className="win-toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.timerEndAudioEnabled !== false}
+                    onChange={(e) => saveSettings({ timerEndAudioEnabled: e.target.checked })}
+                  />
+                  <span className="win-toggle-slider"></span>
+                </label>
+              </div>
+
+              {/* Audio Selector */}
+              {settings.timerEndAudioEnabled !== false && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ flex: 1, marginRight: 16 }}>
+                    <div style={{ fontWeight: 500 }}>提示音路径</div>
+                    <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", wordBreak: "break-all" }}>
+                      {settings.timerEndAudioPath || "默认 (manbo.wav)"}
+                    </div>
+                  </div>
+                  <button
+                    className="btn"
+                    onClick={async () => {
+                      const path = await window.electronAPI.invoke("select-audio-file");
+                      if (path) saveSettings({ timerEndAudioPath: path });
+                    }}
+                  >
+                    选择文件
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="win11-card" style={{ padding: "0 20px 20px 20px" }}>
               <h3 className="title">AI 配置</h3>
+
+              {/* API Key */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontWeight: 500, marginBottom: 8 }}>AI API 密钥 (ModelScope / OpenAI / Kimi)</div>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="password"
+                    defaultValue={settings.aiApiKey || ""}
+                    onBlur={(e) => saveSettings({ aiApiKey: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        saveSettings({ aiApiKey: e.target.value });
+                        e.target.blur();
+                      }
+                    }}
+                    placeholder="输入您的 API Key 以启用 AI 功能"
+                    style={{ width: "100%", margin: 0, padding: "10px 14px", paddingRight: "40px" }}
+                  />
+                </div>
+                <div style={{ marginTop: 8, fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                  推荐注册 ModelScope 获取免费 Token:{" "}
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (window.electronAPI)
+                        window.electronAPI.send("open-external", "https://modelscope.cn/my/access/token");
+                    }}
+                    style={{ color: accent, textDecoration: "none" }}
+                  >
+                    注册指引 &rsaquo;
+                  </a>
+                </div>
+              </div>
 
               {/* Chat Model */}
               <div style={{ marginBottom: 16 }}>
@@ -716,8 +1022,9 @@ export default function DashboardPage() {
                   onChange={(e) => saveSettings({ aiModel: e.target.value })}
                   style={{ width: "100%", margin: 0, padding: "10px 14px" }}
                 >
-                  <option value="moonshotai/Kimi-K2.5">Moonshot Kimi K2.5 (内置)</option>
-                  <option value="Qwen/Qwen3-VL-235B-A22B-Instruct">Qwen3 VL 235B Instruct (内置)</option>
+                  <option value="moonshotai/Kimi-K2.5">Moonshot Kimi K2.5</option>
+                  <option value="Qwen/Qwen3-VL-235B-A22B-Instruct">Qwen3 VL 235B Instruct</option>
+                  <option value="deepseek-ai/DeepSeek-V3">DeepSeek V3</option>
                 </select>
               </div>
 
@@ -729,68 +1036,128 @@ export default function DashboardPage() {
                   onChange={(e) => saveSettings({ imageModel: e.target.value })}
                   style={{ width: "100%", margin: 0, padding: "10px 14px" }}
                 >
-                  <option value="black-forest-labs/FLUX.2-dev">FLUX.2-dev (图像编辑, 内置)</option>
-                  <option value="black-forest-labs/FLUX.1-dev">FLUX.1-dev (文本生成, 内置)</option>
-                  <option value="stabilityai/stable-diffusion-xl-base-1.0">Stable Diffusion XL (内置)</option>
-                  <option value="Qwen/Qwen-Image-Edit-2511">Qwen-Image-Edit-2511 (内置)</option>
+                  <option value="black-forest-labs/FLUX.2-dev">FLUX.2-dev (图像编辑)</option>
+                  <option value="black-forest-labs/FLUX.1-dev">FLUX.1-dev (文本生成)</option>
+                  <option value="stabilityai/stable-diffusion-xl-base-1.0">Stable Diffusion XL</option>
                 </select>
+              </div>
+            </div>
+
+            <div className="win11-card" style={{ padding: "0 20px 20px 20px" }}>
+              <h3 className="title">存储与清理</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 500 }}>清理截图数据</div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                    删除所有保存在本地的截图文件以释放空间。
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn" onClick={() => window.electronAPI && window.electronAPI.send("open-folder")}>
+                    打开文件夹
+                  </button>
+                  <button
+                    className="btn"
+                    style={{ color: "#ef4444", borderColor: "#ef4444" }}
+                    onClick={() => {
+                      showCustomAlert("清理确认", "确定要删除所有截图吗？此操作不可撤销。", {
+                        showCancel: true,
+                        onConfirm: async () => {
+                          const res = await window.electronAPI.invoke("cleanup-screenshots");
+                          if (res.success) showCustomAlert("清理成功", "所有截图已清理完成");
+                          else showCustomAlert("清理失败", res.error);
+                        },
+                      });
+                    }}
+                  >
+                    立即清理
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
 
         {view === "chat" && (
-          <ChatView
-            chatMessages={chatMessages}
-            inputMsg={inputMsg}
-            setInputMsg={setInputMsg}
-            isTyping={isTyping}
-            handleSendChat={handleSendChat}
-            chatEndRef={chatEndRef}
-            accent={accent}
-          />
+          <div className="animate-page" style={{ flex: 1, height: "100%" }}>
+            <ChatView
+              chatMessages={chatMessages}
+              inputMsg={inputMsg}
+              setInputMsg={setInputMsg}
+              isTyping={isTyping}
+              handleSendChat={handleSendChat}
+              chatEndRef={chatEndRef}
+              accent={accent}
+            />
+          </div>
         )}
 
         {view === "tags" && (
-          <TagsView settings={settings} defaultTags={defaultTags} onEdit={handleEditTag} onDelete={confirmDeleteTag} />
+          <div className="animate-page" style={{ width: "100%" }}>
+            <TagsView
+              settings={settings}
+              defaultTags={defaultTags}
+              onEdit={handleEditTag}
+              onDelete={confirmDeleteTag}
+              onSaveSettings={saveSettings}
+            />
+          </div>
         )}
 
         {view === "timeline" && (
-          <TimelineView
-            filteredRecords={filteredRecords}
-            timeFilter={timeFilter}
-            hasDateRange={hasDateRange}
-            handleFilterClick={handleFilterClick}
-            aiSummaryLoading={aiSummaryLoading}
-            handleAiSummary={handleAiSummary}
-            handleAddEvent={handleAddEvent}
-            handleExport={handleExport}
-            dateRange={dateRange}
-            setDateRange={setDateRange}
-            aiSummaryResult={aiSummaryResult}
-            setAiSummaryResult={setAiSummaryResult}
-            accent={accent}
-            handleInsertGap={handleInsertGap}
-            handleDeleteRecord={handleDeleteRecord}
-            setEditingRecord={setEditingRecord}
-            handleSingleAiSummary={handleSingleAiSummary}
-            loadingRecordIds={loadingRecordIds}
-          />
+          <div className="animate-page" style={{ width: "100%" }}>
+            <TimelineView
+              filteredRecords={filteredRecords}
+              timeFilter={timeFilter}
+              hasDateRange={hasDateRange}
+              handleFilterClick={handleFilterClick}
+              aiSummaryLoading={aiSummaryLoading}
+              handleAiSummary={handleAiSummary}
+              handleExport={handleExport}
+              dateRange={dateRange}
+              setDateRange={setDateRange}
+              aiSummaryResult={aiSummaryResult}
+              setAiSummaryResult={setAiSummaryResult}
+              accent={accent}
+              handleInsertGap={handleInsertGap}
+              handleDeleteRecord={handleDeleteRecord}
+              setEditingRecord={setEditingRecord}
+              handleSingleAiSummary={handleSingleAiSummary}
+              loadingRecordIds={loadingRecordIds}
+              onViewImages={(images, index) => setGalleryState({ open: true, images, index })}
+              settings={settings}
+            />
+          </div>
         )}
 
         {view === "stats" && (
-          <StatsView
-            view={view}
-            stats={stats}
-            timeFilter={timeFilter}
-            handleFilterClick={handleFilterClick}
-            hasDateRange={hasDateRange}
-            accent={accent}
-            settings={settings}
-            defaultTags={defaultTags}
-          />
+          <div className="animate-page" style={{ width: "100%" }}>
+            <StatsView
+              view={view}
+              stats={stats}
+              timeFilter={timeFilter}
+              handleFilterClick={handleFilterClick}
+              hasDateRange={hasDateRange}
+              dateRange={dateRange}
+              setDateRange={setDateRange}
+              accent={accent}
+              settings={settings}
+              defaultTags={defaultTags}
+            />
+          </div>
         )}
       </div>
+
+      <Win11Dialog
+        open={dialog.open}
+        title={dialog.title}
+        message={dialog.message}
+        showCancel={dialog.showCancel}
+        onConfirm={dialog.onConfirm}
+        onClose={() => setDialog({ ...dialog, open: false })}
+        isDark={isDark}
+        settings={settings}
+      />
 
       {editingRecord && (
         <EditRecordModal
@@ -798,10 +1165,26 @@ export default function DashboardPage() {
           setEditingRecord={setEditingRecord}
           onSave={handleSaveEdit}
           settings={settings}
+          onViewImages={(images, index) => setGalleryState({ open: true, images, index })}
         />
       )}
 
-      {editingTag && <TagEditModal editingTag={editingTag} setEditingTag={setEditingTag} onSave={handleSaveTag} />}
+      {editingTag && (
+        <TagEditModal
+          editingTag={editingTag}
+          setEditingTag={setEditingTag}
+          onSave={handleSaveTag}
+          settings={settings}
+        />
+      )}
+
+      {galleryState.open && (
+        <ImageGallery
+          images={galleryState.images}
+          initialIndex={galleryState.index}
+          onClose={() => setGalleryState({ open: false, images: [], index: 0 })}
+        />
+      )}
     </div>
   );
 }

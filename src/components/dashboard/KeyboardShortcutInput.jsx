@@ -10,15 +10,34 @@ const KeyboardShortcutInput = ({ value, onChange, accent }) => {
     e.preventDefault();
     e.stopPropagation();
 
+    if (e.key === "Escape") {
+      onChange("");
+      setIsListening(false);
+      setTempKeys([]);
+      inputRef.current?.blur();
+      return;
+    }
+
     const keys = [];
     if (e.ctrlKey) keys.push("Ctrl");
     if (e.altKey) keys.push("Alt");
     if (e.shiftKey) keys.push("Shift");
     if (e.metaKey) keys.push("Meta");
 
+    const keyMapping = {
+      " ": "Space",
+      ArrowUp: "Up",
+      ArrowDown: "Down",
+      ArrowLeft: "Left",
+      ArrowRight: "Right",
+      Escape: "Esc",
+      Control: "Ctrl",
+    };
+
     const key = e.key;
     if (key && !["Control", "Alt", "Shift", "Meta"].includes(key)) {
-      keys.push(key.length === 1 ? key.toUpperCase() : key);
+      const mappedKey = keyMapping[key] || (key.length === 1 ? key.toUpperCase() : key);
+      keys.push(mappedKey);
     }
 
     setTempKeys(keys);
@@ -43,7 +62,9 @@ const KeyboardShortcutInput = ({ value, onChange, accent }) => {
     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
       <input
         ref={inputRef}
-        value={isListening && tempKeys.length > 0 ? tempKeys.join("+") : value}
+        value={
+          isListening && tempKeys.length > 0 ? tempKeys.join("+") : value || (isListening ? "" : "无 (快捷键已禁用)")
+        }
         readOnly
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
@@ -56,15 +77,22 @@ const KeyboardShortcutInput = ({ value, onChange, accent }) => {
           setTempKeys([]);
         }}
         style={{
-          width: 180,
+          width: 200,
           margin: 0,
           cursor: "pointer",
           borderColor: isListening ? accent : undefined,
           textAlign: "center",
+          fontWeight: value ? 600 : 400,
+          color: value ? "var(--text-primary)" : "var(--text-secondary)",
         }}
-        placeholder="点击后按组合键"
+        placeholder="点击后记录组合键"
       />
-      {isListening && <span style={{ fontSize: "0.8rem", color: accent, whiteSpace: "nowrap" }}>按住组合键...</span>}
+      {isListening && (
+        <span style={{ fontSize: "0.75rem", color: accent, whiteSpace: "nowrap" }}>
+          按住组合键保存，按{" "}
+          <kbd style={{ background: "rgba(255,255,255,0.1)", padding: "2px 4px", borderRadius: 4 }}>Esc</kbd> 取消
+        </span>
+      )}
     </div>
   );
 };

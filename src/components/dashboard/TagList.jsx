@@ -1,9 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { Target, Brain, Coffee, Clock, Sparkles, Edit2, Trash2, Plus } from "lucide-react";
-import { useState } from "react";
 import InlineConfirm from "./InlineConfirm";
 
-const TagList = ({ tags, onEdit, onDelete, settings }) => {
+const TagList = React.memo(({ tags, onEdit, onDelete, settings }) => {
   const [confirmingDeleteIndex, setConfirmingDeleteIndex] = useState(null);
 
   // Helper to get correct icon component
@@ -35,22 +34,46 @@ const TagList = ({ tags, onEdit, onDelete, settings }) => {
 
   // Helper to get Pet Icon (Appearance)
   const getPetIcon = (tag) => {
-    // Check for specific default tag overrides in settings
+    const preset = settings.petPreset || "apple";
+    const appearance = settings.appearance || {};
+    const overrides = appearance[preset] || {};
+
+    if (overrides[tag.name]) return overrides[tag.name];
+
+    // Check for legacy global overrides
     if (tag.name === "工作" && settings.petIconWork) return settings.petIconWork;
     if (tag.name === "学习" && settings.petIconStudy) return settings.petIconStudy;
     if (tag.name === "休息" && settings.petIconRest) return settings.petIconRest;
-    if (tag.name === "摸鱼" && settings.petIconPath) return settings.petIconPath; // Default?
+    if (tag.name === "摸鱼" && settings.petIconMoyu) return settings.petIconMoyu;
 
-    // Custom tag petIcon
     if (tag.petIcon) return tag.petIcon;
 
-    // Fallback for default tags if not overridden
-    if (tag.name === "工作") return "/icon_work.png";
-    if (tag.name === "学习") return "/icon_study.png";
-    if (tag.name === "休息") return "/icon_rest.png";
-    if (tag.name === "摸鱼") return "/icon_moyu.png";
+    // Defaults
+    const suffix = preset === "manbo" ? "_mb" : "";
+    if (tag.name === "工作") return `icon_work${suffix}.png`;
+    if (tag.name === "学习") return `icon_study${suffix}.png`;
+    if (tag.name === "休息") return `icon_rest${suffix}.png`;
+    if (tag.name === "摸鱼") return `icon_moyu${suffix}.png`;
 
-    return "icon_moyu.png"; // Ultimate fallback
+    return `icon_moyu${suffix}.png`;
+  };
+
+  // Idle state path helper
+  const getIdleIcon = () => {
+    const preset = settings.petPreset || "apple";
+    const appearance = settings.appearance || {};
+    const overrides = appearance[preset] || {};
+
+    if (overrides["Idle"]) return overrides["Idle"];
+
+    const suffix = preset === "manbo" ? "_mb" : "";
+    const baseIcon = `icon_base${suffix}.png`;
+    const currentIdle = settings.petIconPath;
+
+    if (currentIdle && currentIdle !== "icon_base.png" && currentIdle !== "icon_base_mb.png") {
+      return currentIdle;
+    }
+    return baseIcon;
   };
 
   return (
@@ -69,6 +92,80 @@ const TagList = ({ tags, onEdit, onDelete, settings }) => {
         <div style={{ flex: 1, minWidth: "100px" }}>标签信息</div>
         <div style={{ flex: 1, minWidth: "100px" }}>对应桌宠外观</div>
         <div style={{ width: 100, textAlign: "right" }}>操作</div>
+      </div>
+
+      {/* Idle State Entry */}
+      <div
+        className="win11-card"
+        style={{
+          padding: "12px 16px",
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          background: "color-mix(in srgb, var(--card-bg), var(--accent) 5%)",
+          border: "1px solid color-mix(in srgb, var(--border-color), var(--accent) 30%)",
+        }}
+      >
+        <div style={{ flex: 1, minWidth: "100px", display: "flex", alignItems: "center", gap: 12 }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              background: "rgba(128, 128, 128, 0.1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--text-secondary)",
+            }}
+          >
+            <Clock size={20} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>空闲状态 (默认)</div>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>当前没有执行任务时显示</div>
+          </div>
+        </div>
+        <div style={{ flex: 1, minWidth: "100px", display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              border: "2px solid var(--border-color)",
+              background: "#f0f0f0",
+              overflow: "hidden",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <img
+              src={getIdleIcon()}
+              alt="Idle Pet"
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              onError={(e) => (e.target.style.display = "none")}
+            />
+          </div>
+          <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>系统外观</div>
+        </div>
+        <div style={{ width: 100, display: "flex", justifyContent: "flex-end" }}>
+          <button
+            onClick={() => onEdit({ name: "空闲状态", petIcon: getIdleIcon(), isIdle: true }, -1)}
+            style={{
+              background: "var(--accent)",
+              border: "none",
+              borderRadius: 6,
+              padding: "6px 12px",
+              cursor: "pointer",
+              color: "white",
+              fontSize: "0.8rem",
+              fontWeight: 500,
+            }}
+          >
+            更换形象
+          </button>
+        </div>
       </div>
 
       {tags.map((tag, idx) => {
@@ -242,6 +339,6 @@ const TagList = ({ tags, onEdit, onDelete, settings }) => {
       </button>
     </div>
   );
-};
+});
 
 export default TagList;

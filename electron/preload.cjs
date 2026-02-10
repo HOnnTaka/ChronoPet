@@ -10,7 +10,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'set-pinned', 'set-ignore-mouse', 'resize-pet-window', 
       'quick-record-now', 'open-detailed-record', 'update-record-parts',
       'delete-record', 'update-last-record-desc', 'open-settings-tags',
-      'ai-chat'
+      'ai-chat', 'show-image-context-menu', 'open-external', 'stop-current-record',
+      'open-folder', 'sync-app-icon'
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
@@ -22,6 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'ai-summary-response', 'switch-tab', 'scroll-to-tags', 
       'settings-updated', 'execute-quick-record',
       'ai-chat-stream-v2', 'ai-chat-response', 'ai-chat-end',
+      'theme-updated',
       // Legacy channels kept for safety but v2 preferred for streaming
       'ai-chat-stream'
     ];
@@ -32,7 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
   invoke: (channel, data) => {
-    let validChannels = ['get-records', 'get-system-colors', 'get-settings', 'generate-icon'];
+    let validChannels = ['get-records', 'get-system-colors', 'get-settings', 'generate-icon', 'cleanup-screenshots', 'select-audio-file'];
     if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, data);
     }
