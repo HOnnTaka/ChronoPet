@@ -447,7 +447,7 @@ function updateTrayMenu() {
                 dialog.showMessageBox({
                     type: 'info',
                     title: '关于',
-                    message: 'ChronoPet v1.0.0',
+                    message: 'ChronoPet v1.0.1',
                     detail: 'AI 驱动的时间管理助手',
                     buttons: ['确定']
                 });
@@ -1408,6 +1408,56 @@ ipcMain.on('request-ai-summary', async (event, data) => {
 });
 
 // 批量总结接口 - 合并请求以节省额度并绕过限制
+
+
+ipcMain.handle('check-for-updates', async () => {
+    try {
+        const currentVersion = app.getVersion();
+        const fetch = (await import('node-fetch')).default;
+        // GitHub API: Get latest release
+        const repo = 'HOnnTaka/ChronoPet'; // Based on your workspace info
+        const url = `https://api.github.com/repos/${repo}/releases/latest`;
+        
+        console.log('[Updater] Checking updates from:', url);
+        const response = await fetch(url, {
+            headers: { 'User-Agent': 'ChronoPet-App' }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`GitHub API Error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const latestTag = data.tag_name; // e.g., "v1.0.1"
+        const latestVersion = latestTag.replace(/^v/, '');
+        
+        // Simple version compare (assuming semantic versioning)
+        // You might want a semver library for robust comparison
+        const v1 = currentVersion.split('.').map(Number);
+        const v2 = latestVersion.split('.').map(Number);
+        
+        let updateAvailable = false;
+        for (let i = 0; i < 3; i++) {
+            const a = v1[i] || 0;
+            const b = v2[i] || 0;
+            if (a < b) { updateAvailable = true; break; }
+            if (a > b) { break; }
+        }
+        
+        return {
+            success: true,
+            updateAvailable,
+            currentVersion,
+            latestVersion,
+            latestTag,
+            releaseNotes: data.body,
+            downloadUrl: data.html_url
+        };
+    } catch (e) {
+        console.error('[Updater] Check failed', e);
+        return { success: false, error: e.message, currentVersion: app.getVersion() };
+    }
+});
 
 
 // 通用 AI 对话接口

@@ -1075,6 +1075,81 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+
+            {/* 关于与更新 */}
+            <div className="win11-card" style={{ padding: "0 20px 20px 20px" }}>
+              <h3 className="title">关于与更新</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 500 }}>ChronoPet</div>
+                  <div id="app-version-label" style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                    当前版本: {window.electronAPI ? "正在获取..." : "Unknown"}
+                  </div>
+                </div>
+                <button
+                  className="btn"
+                  onClick={async (e) => {
+                    const btn = e.currentTarget;
+                    const originalContent = btn.innerHTML;
+                    btn.innerText = "检查中...";
+                    btn.disabled = true;
+                    try {
+                      if (window.electronAPI) {
+                        const res = await window.electronAPI.invoke("check-for-updates");
+
+                        // Update version label if we got it
+                        if (res.currentVersion) {
+                          const label = document.getElementById("app-version-label");
+                          if (label) label.innerText = `当前版本: v${res.currentVersion}`;
+                        }
+
+                        if (res.success) {
+                          if (res.updateAvailable) {
+                            showCustomAlert(
+                              "发现新版本",
+                              `最新版本: ${res.latestTag}\n\n更新日志:\n${res.releaseNotes || "暂无说明"}\n\n是否前往 GitHub 下载？`,
+                              {
+                                showCancel: true,
+                                onConfirm: () => {
+                                  if (window.electronAPI) window.electronAPI.send("open-external", res.downloadUrl);
+                                },
+                              },
+                            );
+                          } else {
+                            showCustomAlert("已经是最新版", `当前版本: v${res.currentVersion} 是最新的。`);
+                          }
+                        } else {
+                          showCustomAlert("检查更新失败", res.error);
+                        }
+                      }
+                    } catch (err) {
+                      showCustomAlert("检查失败", err.message);
+                    } finally {
+                      btn.innerHTML = originalContent;
+                      btn.disabled = false;
+                    }
+                  }}
+                  style={{ display: "flex", alignItems: "center" }}
+                >
+                  <RefreshCw size={14} style={{ marginRight: 6 }} />
+                  检查更新
+                </button>
+              </div>
+              <div style={{ marginTop: 16, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                开源地址:{" "}
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (window.electronAPI)
+                      window.electronAPI.send("open-external", "https://github.com/HOnnTaka/ChronoPet");
+                  }}
+                  style={{ color: accent, textDecoration: "none" }}
+                >
+                  GitHub &rsaquo;
+                </a>
+              </div>
+            </div>
           </div>
         )}
 
