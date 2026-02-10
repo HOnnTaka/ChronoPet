@@ -628,16 +628,33 @@ function createDashboardWindow() {
     });
 }
 
-app.whenReady().then(() => {
-  if (process.platform === 'win32') {
-    app.setAppUserModelId('com.chronopet.app');
-  }
-  createTray();
-  createPetWindow();
-  createInputWindow();
-  createDashboardWindow();
-  applySettings();
-});
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    // If user tries to run a second instance, focus our main window or show pet window
+    if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+      if (dashboardWindow.isMinimized()) dashboardWindow.restore();
+      dashboardWindow.show();
+      dashboardWindow.focus();
+    } else if (petWindow && !petWindow.isDestroyed()) {
+        petWindow.showInactive();
+    }
+  });
+
+  app.whenReady().then(() => {
+    if (process.platform === 'win32') {
+      app.setAppUserModelId('com.chronopet.app');
+    }
+    createTray();
+    createPetWindow();
+    createInputWindow();
+    createDashboardWindow();
+    applySettings();
+  });
+}
 
 app.on('before-quit', () => {
     isQuitting = true;
@@ -1423,41 +1440,75 @@ ipcMain.handle('check-for-updates', async () => {
             headers: { 'User-Agent': 'ChronoPet-App' }
         });
         
+        if (response.status === 404) {
+             console.log('[Updater] Latest release not found, trying releases list for pre-releases...');
+             // Try getting list of releases (includes pre-releases)
+             const releasesUrl = `https://api.github.com/repos/${repo}/releases`;
+             const releasesRes = await fetch(releasesUrl, { headers: { 'User-Agent': 'ChronoPet-App' } });
+             
+             if (releasesRes.ok) {
+                 const releases = await releasesRes.json();
+                 if (Array.isArray(releases) && releases.length > 0) {
+                     // Use the first one (most recent, even if pre-release)
+                     const data = releases[0];
+                     console.log('[Updater] Found pre-release:', data.tag_name);
+                     return processReleaseData(data, currentVersion);
+                 } else {
+                     console.log('[Updater] Releases list is empty or not an array:', JSON.stringify(releases));
+                 }
+             } else {
+                 console.log('[Updater] Failed to fetch releases list:', releasesRes.status);
+             }
+             return { success: false, error: 'GitHub 仓库未找到任何 Release (包括 Pre-release)', currentVersion };
+        }
+
         if (!response.ok) {
             throw new Error(`GitHub API Error: ${response.status}`);
         }
         
         const data = await response.json();
-        const latestTag = data.tag_name; // e.g., "v1.0.1"
-        const latestVersion = latestTag.replace(/^v/, '');
+        return processReleaseData(data, currentVersion);
         
-        // Simple version compare (assuming semantic versioning)
-        // You might want a semver library for robust comparison
-        const v1 = currentVersion.split('.').map(Number);
-        const v2 = latestVersion.split('.').map(Number);
-        
-        let updateAvailable = false;
-        for (let i = 0; i < 3; i++) {
-            const a = v1[i] || 0;
-            const b = v2[i] || 0;
-            if (a < b) { updateAvailable = true; break; }
-            if (a > b) { break; }
-        }
-        
-        return {
-            success: true,
-            updateAvailable,
-            currentVersion,
-            latestVersion,
-            latestTag,
-            releaseNotes: data.body,
-            downloadUrl: data.html_url
-        };
     } catch (e) {
         console.error('[Updater] Check failed', e);
         return { success: false, error: e.message, currentVersion: app.getVersion() };
     }
 });
+
+function processReleaseData(data, currentVersion) {
+    const latestTag = data.tag_name; 
+    const latestVersion = latestTag.replace(/^v/, '').split('-')[0]; // Remove -alpha suffix for comparison setup
+    
+    // Improved Semantic Versioning Comparison for semver-ish (major.minor.patch)
+    // Note: This simple comparison ignores -alpha/-beta suffixes for correctness, 
+    // it treats 1.0.1-alpha as "1.0.1". 
+    // If current is 1.0.1, and remote is 1.0.1-alpha, we might not want to "downgrade" or notify.
+    // BUT usually releases are strictly increasing.
+    // Let's stick to numerical comparison of M.m.p
+    
+    const v1 = currentVersion.split('.').map(Number);
+    const v2 = latestVersion.split('.').map(Number);
+    
+    let updateAvailable = false;
+    for (let i = 0; i < 3; i++) {
+        const a = v1[i] || 0;
+        const b = v2[i] || 0;
+        if (a < b) { updateAvailable = true; break; }
+        if (a > b) { break; }
+    }
+    
+    // If strict equality, usually we don't update.
+    
+    return {
+        success: true,
+        updateAvailable,
+        currentVersion,
+        latestVersion: latestTag, // Show full tag in UI
+        latestTag,
+        releaseNotes: data.body,
+        downloadUrl: data.html_url
+    };
+}
 
 
 // 通用 AI 对话接口
