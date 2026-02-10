@@ -410,7 +410,7 @@ const EditRecordModal = ({ editingRecord, setEditingRecord, onSave, settings, on
                 fontWeight: 700,
                 color: "var(--text-primary)",
                 outline: "none",
-                marginBottom: "-0.5px",
+                margin: 0,
                 background: "var(--input-bg)",
               }}
             />
@@ -422,9 +422,11 @@ const EditRecordModal = ({ editingRecord, setEditingRecord, onSave, settings, on
                 display: "flex",
                 alignItems: "center",
                 height: "100%",
+                margin: 0,
+                marginBottom: "-4px",
               }}
             >
-              min
+              m
             </span>
             <button
               className="btn"

@@ -934,10 +934,15 @@ export default function RecordPage() {
             <button
               className="btn no-drag"
               style={{
-                padding: "0 4px",
+                padding: "0",
                 border: "none",
                 background: "transparent",
-                minWidth: 20,
+                width: 20,
+                height: 20,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: 0,
                 cursor: timingMode ? "pointer" : "not-allowed",
               }}
               onClick={() => setDuration(Math.max(0, duration - 5))}
@@ -955,6 +960,7 @@ export default function RecordPage() {
                 width: "30px",
                 border: "none",
                 padding: "0",
+                margin: 0,
                 textAlign: "center",
                 fontSize: "0.8rem",
                 fontWeight: 700,
@@ -971,7 +977,7 @@ export default function RecordPage() {
                 display: "flex",
                 alignItems: "center",
                 height: "100%",
-                marginLeft: "-2px",
+                marginBottom: "-4px",
               }}
             >
               m
@@ -982,7 +988,11 @@ export default function RecordPage() {
                 padding: "0 4px",
                 border: "none",
                 background: "transparent",
-                minWidth: 20,
+                width: 20,
+                height: 20,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 cursor: timingMode ? "pointer" : "not-allowed",
               }}
               onClick={() => setDuration(duration + 5)}

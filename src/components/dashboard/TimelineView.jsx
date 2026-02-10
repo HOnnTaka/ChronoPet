@@ -434,7 +434,7 @@ export default function TimelineView({
           }}
         ></div>
 
-        {timeFilter === "today" && filteredRecords.length > 0 && (
+        {(timeFilter === "today" || timeFilter === "all") && filteredRecords.length > 0 && (
           <LiveTimelineHeader lastRecord={filteredRecords[0]} onInsert={handleInsertGap} accent={accent} />
         )}
 

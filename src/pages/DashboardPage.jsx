@@ -1083,7 +1083,7 @@ export default function DashboardPage() {
                 <div>
                   <div style={{ fontWeight: 500 }}>ChronoPet</div>
                   <div id="app-version-label" style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                    当前版本: {window.electronAPI ? "正在获取..." : "Unknown"}
+                    当前版本: {window.electronAPI ? "v1.0.1" : "Unknown"}
                   </div>
                 </div>
                 <button
@@ -1161,6 +1161,7 @@ export default function DashboardPage() {
               onEdit={handleEditTag}
               onDelete={confirmDeleteTag}
               onSaveSettings={saveSettings}
+              showCustomAlert={showCustomAlert}
             />
           </div>
         )}
