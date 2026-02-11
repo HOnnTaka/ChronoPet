@@ -57,15 +57,28 @@ const EditRecordModal = ({ editingRecord, setEditingRecord, onSave, settings, on
         alignItems: "center",
         justifyContent: "center",
         zIndex: 1000,
-        background: "rgba(0,0,0,0.4)",
+        background: "transparent",
         padding: 16,
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) setEditingRecord(null);
       }}
     >
+      {/* Dimmer Background Sibling */}
       <div
-        className={`win11-card ${settings.win12Experimental ? "win12-experimental" : ""}`}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: settings.win12Experimental ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.4)",
+          pointerEvents: "none", // Let clicks pass through to container
+          zIndex: -1
+        }}
+      />
+      <div
+        className={`win11-card ${settings.win12Experimental ? "liquid-modal" : ""}`}
         style={{
           width: 440,
           maxWidth: "100%",
@@ -74,14 +87,15 @@ const EditRecordModal = ({ editingRecord, setEditingRecord, onSave, settings, on
           animation: "modalScaleIn 0.25s cubic-bezier(0.1, 0.9, 0.2, 1)",
           overflow: "hidden",
           maxHeight: "90vh",
-          backdropFilter: settings.win12Experimental ? "saturate(280%)" : "blur(40px) saturate(180%)",
-          backgroundColor: settings.win12Experimental ? "var(--win12-tint)" : "var(--bg-active)",
-          backgroundImage:
-            settings.win12Experimental ? "none" : (
-              "linear-gradient(to bottom right, transparent, color-mix(in srgb, var(--accent), transparent 90%))"
-            ),
-          border: "1px solid var(--border-color)",
-          boxShadow: "0 20px 50px rgba(0,0,0,0.25), 0 0 0 1px inset rgba(255, 255, 255, 0.1)",
+          ...(settings.win12Experimental ? {} : {
+            backdropFilter: "blur(40px) saturate(180%)",
+            WebkitBackdropFilter: "blur(40px) saturate(180%)",
+            backgroundColor: "var(--bg-active)",
+            backgroundImage: "linear-gradient(to bottom right, transparent, color-mix(in srgb, var(--accent), transparent 90%))",
+            border: "1px solid var(--border-color)",
+            borderRadius: "8px",
+            boxShadow: "0 20px 50px rgba(0,0,0,0.25), 0 0 0 1px inset rgba(255, 255, 255, 0.1)",
+          }),
         }}
       >
         {/* Header */}
@@ -92,8 +106,8 @@ const EditRecordModal = ({ editingRecord, setEditingRecord, onSave, settings, on
             alignItems: "center",
             justifyContent: "space-between",
             padding: "0 16px",
-            borderBottom: "1px solid var(--border-color)",
-            background: "rgba(255,255,255,0.05)",
+            borderBottom: settings.win12Experimental ? "none" : "1px solid var(--border-color)",
+            background: settings.win12Experimental ? "transparent" : "rgba(255,255,255,0.05)",
             userSelect: "none",
           }}
         >
@@ -306,7 +320,7 @@ const EditRecordModal = ({ editingRecord, setEditingRecord, onSave, settings, on
                   <ImageIcon size={20} opacity={0.5} />
                   <span>添加记录截图</span>
                 </>
-              : <Plus size={20} opacity={0.5} />}
+                : <Plus size={20} opacity={0.5} />}
             </div>
           </div>
 

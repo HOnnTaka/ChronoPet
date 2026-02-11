@@ -17,6 +17,7 @@ const Win11Dialog = ({
   cancelLabel = "取消",
   showCancel = false,
   settings = {},
+  type = "primary",
 }) => {
   if (!open) return null;
 
@@ -32,8 +33,8 @@ const Win11Dialog = ({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "rgba(0,0,0,0.4)",
-        backdropFilter: "blur(4px)",
+        background: settings.win12Experimental ? "transparent" : "rgba(0,0,0,0.4)",
+        backdropFilter: settings.win12Experimental ? "none" : "blur(4px)",
         animation: "fadeIn 0.2s ease-out",
       }}
       onClick={onClose}
@@ -50,19 +51,19 @@ const Win11Dialog = ({
         }
       `}</style>
       <div
-        className={`win11-dialog ${settings.win12Experimental ? "win12-experimental" : ""}`}
+        className={`win11-dialog ${settings.win12Experimental ? "liquid-dialog" : ""}`}
         style={{
           width: "400px",
           maxWidth: "90%",
-          background:
-            settings.win12Experimental ? "var(--win12-tint)"
-            : isDark ? "#2d2d2d"
-            : "#ffffff",
-          borderRadius: settings.win12Experimental ? "20px" : "12px",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          backdropFilter: settings.win12Experimental ? "saturate(200%)" : "none",
+          ...(settings.win12Experimental ? {} : {
+            background: isDark ? "#2d2d2d" : "#ffffff",
+            borderRadius: "12px",
+            border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
+            boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
+          }),
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -134,43 +135,31 @@ const Win11Dialog = ({
         >
           {showCancel && (
             <button
+              className="btn"
               onClick={() => {
                 if (onCancel) onCancel();
                 onClose();
               }}
               style={{
                 padding: "3px 16px",
-                borderRadius: "6px",
-                border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.1)",
-                background: isDark ? "rgba(255,255,255,0.05)" : "white",
-                color: isDark ? "white" : "black",
                 fontSize: "0.8rem",
                 fontWeight: 500,
-                cursor: "pointer",
-                transition: "all 0.2s",
               }}
             >
               {cancelLabel}
             </button>
           )}
           <button
+            className={`btn ${type === "danger" ? "danger" : "primary"}`}
             onClick={() => {
               if (onConfirm) onConfirm();
               onClose();
             }}
             style={{
               padding: "3px 16px",
-              borderRadius: "6px",
-              border: "1px solid var(--accent)",
-              background: "var(--accent)",
-              color: "white",
               fontSize: "0.8rem",
               fontWeight: 500,
-              cursor: "pointer",
-              transition: "all 0.2s",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = 0.9)}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = 1)}
           >
             {confirmLabel}
           </button>

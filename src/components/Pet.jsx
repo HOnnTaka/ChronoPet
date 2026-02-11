@@ -75,7 +75,7 @@ const Pet = () => {
   const dragStart = useRef({ x: 0, y: 0 });
   const [isSwitching, setIsSwitching] = useState(false);
   const [isDark, setIsDark] = useState(true);
-  const [accent, setAccent] = useState("#7c3aed");
+  const [accent, setAccent] = useState("#0078d4");
   const [iconPath, setIconPath] = useState("icon_moyu.png");
   const [lastRecordTime, setLastRecordTime] = useState(() => Date.now());
   const [durationStr, setDurationStr] = useState("00:00");
@@ -170,7 +170,7 @@ const Pet = () => {
                   style={{ width: 16, height: 16, borderRadius: 4, objectFit: "cover" }}
                   onError={(e) => (e.target.style.display = "none")}
                 />
-              : <IconComp size={16} />;
+                : <IconComp size={16} />;
 
             return {
               name: t.name,
@@ -197,7 +197,7 @@ const Pet = () => {
           const durationMs =
             last.id > 1739015400000 || (last.duration || 0) > 3600 ?
               (last.duration || 0) * 1000
-            : (last.duration || 0) * 60000;
+              : (last.duration || 0) * 60000;
           const end = last.id + durationMs;
 
           // Special case: duration 0 means "Until stopped" (Unlimited)
@@ -308,6 +308,10 @@ const Pet = () => {
       } else {
         const durationS = getDurationS(lastRecord);
         if (diffS >= durationS && durationS > 0) {
+          if (!hasPlayedSound.current.played) {
+            playEndSound();
+            hasPlayedSound.current.played = true;
+          }
           setCurrentStatus("空闲");
           setDurationStr("空闲中");
           setIconPath(resolveStatusIcon(settings, "空闲"));
@@ -455,7 +459,7 @@ const Pet = () => {
     bubbleShadow:
       isDark ?
         "0 20px 50px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.1)"
-      : "0 20px 50px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,1)",
+        : "0 20px 50px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,1)",
     textPrimary: isDark ? "#ffffff" : "#1a1a1a",
     textSecondary: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.6)",
     btnBg: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.03)",
@@ -767,9 +771,9 @@ const Pet = () => {
               boxShadow:
                 showMenu ?
                   isDark ? `0 0 0 3px rgba(255,255,255,0.15), 0 16px 40px ${accent}40`
-                  : `0 0 0 3px rgba(0,0,0,0.05), 0 16px 40px ${accent}30`
-                : isDark ? `0 8px 30px rgba(0,0,0,0.5), 0 0 0 2px rgba(255,255,255,0.3)`
-                : `0 8px 25px rgba(0,0,0,0.15), 0 0 0 2px rgba(255,255,255,0.8)`,
+                    : `0 0 0 3px rgba(0,0,0,0.05), 0 16px 40px ${accent}30`
+                  : isDark ? `0 8px 30px rgba(0,0,0,0.5), 0 0 0 2px rgba(255,255,255,0.3)`
+                    : `0 8px 25px rgba(0,0,0,0.15), 0 0 0 2px rgba(255,255,255,0.8)`,
               cursor: isDragging ? "grabbing" : "pointer",
               transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
               userSelect: "none",

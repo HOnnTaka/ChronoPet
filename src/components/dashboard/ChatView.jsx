@@ -77,7 +77,7 @@ export default function ChatView({
             >
               {msg.sender === "user" ?
                 <span style={{ color: "#fff", fontSize: "0.8rem", fontWeight: 600 }}>我</span>
-              : <Sparkles size={18} style={{ color: "var(--accent)" }} />}
+                : <Sparkles size={18} style={{ color: "var(--accent)" }} />}
             </div>
 
             {/* Bubble */}
@@ -174,56 +174,19 @@ export default function ChatView({
       </div>
 
       {/* Input Area */}
-      <div
-        style={{
-          padding: "20px",
-          background: "var(--bg-secondary)",
-          borderTop: "1px solid var(--border-color)",
-        }}
-      >
-        <div
-          style={{
-            background: "var(--input-bg)",
-            border: "1px solid var(--border-color)",
-            borderRadius: "24px",
-            padding: "4px 4px 4px 16px",
-            display: "flex",
-            alignItems: "center",
-            boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-            transition: "all 0.2s",
-          }}
-        >
+      <div className="chat-input-area">
+        <div className="chat-input-box">
           <input
+            className="chat-input"
             value={inputMsg}
             onChange={(e) => setInputMsg(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !isTyping && handleSendChat()}
             placeholder="输入消息..."
-            style={{
-              flex: 1,
-              border: "none",
-              background: "transparent",
-              padding: "8px 0",
-              margin: 0,
-              boxShadow: "none",
-              outline: "none",
-            }}
           />
           <button
-            className="btn primary"
+            className={`chat-send-btn ${inputMsg.trim() ? "active" : ""}`}
             onClick={handleSendChat}
             disabled={isTyping || !inputMsg.trim()}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: "50%",
-              padding: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: inputMsg.trim() ? "var(--accent)" : "var(--border-color)",
-              cursor: inputMsg.trim() ? "pointer" : "default",
-              transition: "all 0.2s",
-            }}
           >
             <Send size={16} />
           </button>

@@ -47,6 +47,7 @@ import ChatView from "../components/dashboard/ChatView";
 import TagsView from "../components/dashboard/TagsView";
 import ImageGallery from "../components/dashboard/ImageGallery";
 import Win11Dialog from "../components/dashboard/Win11Dialog";
+import pkg from "../../package.json";
 
 const BUILTIN_MODELS = ["moonshotai/Kimi-K2.5", "Qwen/Qwen3-VL-235B-A22B-Instruct"];
 
@@ -113,6 +114,7 @@ export default function DashboardPage() {
       message,
       showCancel: options.showCancel || false,
       onConfirm: options.onConfirm || null,
+      type: options.type || "primary",
     });
   }, []);
 
@@ -140,7 +142,18 @@ export default function DashboardPage() {
       });
     } else if (timeFilter !== "all" && timeFilter !== "custom") {
       if (timeFilter === "today") {
-        filtered = filtered.filter((r) => new Date(r.timestamp) >= today);
+        filtered = filtered.filter((r) => {
+          // 记录开始时间在今天
+          if (new Date(r.timestamp) >= today) return true;
+          // 或者记录的结束时间在今天（跨零点的任务）
+          if (r.duration > 0) {
+            const d = r.duration || 0;
+            const dMs = (r.id > 1739015400000 || d > 3600) ? d * 1000 : d * 60000;
+            const endTime = r.id + dMs;
+            if (endTime >= today.getTime()) return true;
+          }
+          return false;
+        });
       } else if (timeFilter === "yesterday") {
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
@@ -224,7 +237,7 @@ export default function DashboardPage() {
                 });
               }
             } else {
-              console.error("单个事件总结失败: " + result.error);
+              showCustomAlert("AI总结失败", result.error || "AI 服务异常，请检查 API 密钥是否正确");
             }
           } else {
             setAiSummaryLoading(false);
@@ -478,8 +491,8 @@ export default function DashboardPage() {
       return;
     }
 
-    if (!settings.aiApiKey && !BUILTIN_MODELS.includes(settings.aiModel)) {
-      showCustomAlert("API 密钥缺失", "使用 AI 功能需要配置 API 密钥");
+    if (!settings.aiApiKey) {
+      showCustomAlert("API 密钥缺失", "使用 AI 功能需要在设置中配置 ModelScope API 密钥");
       return;
     }
 
@@ -503,6 +516,11 @@ export default function DashboardPage() {
 
   const handleSingleAiSummary = (record) => {
     if (!record.screenshots || record.screenshots.length === 0) return;
+
+    if (!settings.aiApiKey) {
+      showCustomAlert("API 密钥缺失", "请先在设置中配置 ModelScope API 密钥");
+      return;
+    }
 
     setLoadingRecordIds((prev) => new Set(prev).add(record.id));
     if (window.electronAPI) {
@@ -603,7 +621,7 @@ export default function DashboardPage() {
     const peakHour =
       Object.keys(tasksByHour).length > 0 ?
         Object.keys(tasksByHour).reduce((a, b) => (tasksByHour[a] > tasksByHour[b] ? a : b), 0)
-      : 0;
+        : 0;
 
     const tagStats = {};
     const tagDurationStatsS = {};
@@ -730,7 +748,7 @@ export default function DashboardPage() {
 
   return (
     <div
-      className={`win-container ${isFocused ? "" : "inactive"} ${settings.win12Experimental ? "win12-experimental" : ""}`}
+      className={`win-container ${isFocused ? "" : "inactive"} ${settings.win12Experimental ? "liquid-ui" : ""}`}
       style={{ height: "100vh", display: "flex", flexDirection: "column" }}
     >
       <div
@@ -744,8 +762,8 @@ export default function DashboardPage() {
           WebkitAppRegion: "drag",
           background:
             settings.win12Experimental ? "transparent"
-            : isFocused ? "rgba(255,255,255,0.05)"
-            : "transparent",
+              : isFocused ? "rgba(255,255,255,0.05)"
+                : "transparent",
           userSelect: "none",
         }}
       >
@@ -790,8 +808,8 @@ export default function DashboardPage() {
           display: "flex",
           background:
             settings.win12Experimental ? "transparent"
-            : isFocused ? "rgba(255,255,255,0.03)"
-            : "transparent",
+              : isFocused ? "rgba(255,255,255,0.03)"
+                : "transparent",
         }}
       >
         <TabButton id="timeline" label="时间线" icon={Calendar} activeId={view} onClick={setView} accent={accent} />
@@ -884,7 +902,7 @@ export default function DashboardPage() {
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 500 }}>Win12 界面模式 (实验性)</div>
+                  <div style={{ fontWeight: 500 }}>流光 UI 模式 (实验性)</div>
                 </div>
                 <label className="win-toggle">
                   <input
@@ -1083,7 +1101,7 @@ export default function DashboardPage() {
                 <div>
                   <div style={{ fontWeight: 500 }}>ChronoPet</div>
                   <div id="app-version-label" style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                    当前版本: {window.electronAPI ? "v1.0.1" : "Unknown"}
+                    当前版本: {window.electronAPI ? `v${pkg.version}` : "Unknown"}
                   </div>
                 </div>
                 <button
@@ -1219,6 +1237,7 @@ export default function DashboardPage() {
         onClose={() => setDialog({ ...dialog, open: false })}
         isDark={isDark}
         settings={settings}
+        type={dialog.type || "primary"}
       />
 
       {editingRecord && (

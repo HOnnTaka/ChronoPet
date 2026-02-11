@@ -2,19 +2,7 @@ const { app, BrowserWindow, ipcMain, desktopCapturer, screen, Tray, Menu, global
 const path = require('path');
 const fs = require('fs');
 
-// Simple .env loader if dotenv is not available
-try {
-  require('dotenv').config();
-} catch (e) {
-  const envPath = path.join(__dirname, '../.env');
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, 'utf8');
-    envContent.split('\n').forEach(line => {
-      const [key, value] = line.split('=');
-      if (key && value) process.env[key.trim()] = value.trim();
-    });
-  }
-}
+
 const os = require('os');
 
 let petWindow;
@@ -26,17 +14,17 @@ let isQuitting = false; // 退出标识符
 const isDev = !app.isPackaged;
 // Persist settings
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
-let settings = { 
-    shortcut: '', 
+let settings = {
+    shortcut: '',
     autoStart: true,
     aiModel: 'Qwen/Qwen3-VL-235B-A22B-Instruct',
     aiApiKey: '',
     customModel: '',
     inputWindowPos: null
 };
-try { 
-    if(fs.existsSync(settingsPath)) settings = { ...settings, ...JSON.parse(fs.readFileSync(settingsPath)) }; 
-} catch(e) {}
+try {
+    if (fs.existsSync(settingsPath)) settings = { ...settings, ...JSON.parse(fs.readFileSync(settingsPath)) };
+} catch (e) { }
 
 const isDark = nativeTheme.shouldUseDarkColors;
 const iconPath = path.join(__dirname, '../public/icon_moyu.png');
@@ -53,7 +41,7 @@ app.whenReady().then(() => {
     // Migration: records.json -> records.db (JSONL)
     const oldPath = path.join(app.getPath('userData'), 'records.json');
     const bakPath = oldPath + '.bak';
-    
+
     let shouldMigrate = false;
     if (fs.existsSync(oldPath) || fs.existsSync(bakPath)) {
         const sourcePath = fs.existsSync(oldPath) ? oldPath : bakPath;
@@ -82,7 +70,7 @@ app.whenReady().then(() => {
                     console.log(`[Migration] Success. Migrated ${data.length} records.`);
                 }
                 if (targetOldPath === oldPath) fs.renameSync(oldPath, bakPath);
-            } catch(e) { console.error('[Migration] Failed', e); }
+            } catch (e) { console.error('[Migration] Failed', e); }
         }
     }
 
@@ -122,9 +110,9 @@ function getRecords() {
                     writeRecords(cachedRecords);
                     return cachedRecords;
                 }
-            } catch(e) {}
+            } catch (e) { }
         }
-        
+
         cachedRecords = [];
         const lines = content.split('\n').filter(Boolean);
         for (const line of lines) {
@@ -141,17 +129,17 @@ function getRecords() {
                     if (!r.timestamp) r.timestamp = new Date(r.id).toISOString();
                     cachedRecords.push(r);
                 }
-            } catch(e) { console.error('Parse line failed', e); }
+            } catch (e) { console.error('Parse line failed', e); }
         }
-        
+
         if (cachedRecords.length > 0) {
             lastRecord = cachedRecords[cachedRecords.length - 1];
         }
         return cachedRecords;
-    } catch (e) { 
+    } catch (e) {
         console.error('Read records failed', e);
         cachedRecords = [];
-        return []; 
+        return [];
     }
 }
 
@@ -171,7 +159,7 @@ function writeRecords(records) {
 function appendRecord(record) {
     if (!cachedRecords) getRecords();
     cachedRecords.push(record);
-    
+
     // Only update lastRecord if this is 'newer' than what we have
     if (!lastRecord || record.id > lastRecord.id) {
         lastRecord = record;
@@ -190,7 +178,7 @@ function ensureRecordOptimized(record) {
         const date = new Date(record.id || Date.now());
         const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
         const targetSubDir = path.join(screenshotsDir, dateStr);
-        
+
         if (!fs.existsSync(targetSubDir)) {
             try {
                 fs.mkdirSync(targetSubDir, { recursive: true });
@@ -204,7 +192,7 @@ function ensureRecordOptimized(record) {
                     if (!matches) return img;
                     const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
                     const buffer = Buffer.from(matches[2], 'base64');
-                    
+
                     const h = String(date.getHours()).padStart(2, '0');
                     const m = String(date.getMinutes()).padStart(2, '0');
                     const s = String(date.getSeconds()).padStart(2, '0');
@@ -212,7 +200,7 @@ function ensureRecordOptimized(record) {
                     // Format: YYYYMMDD_HHMMSS_ID_idx.ext
                     const fileName = `${dateStr.replace(/-/g, '')}_${timeStr}_${record.id || 'new'}_${idx}.${ext}`;
                     const filePath = path.join(targetSubDir, fileName);
-                    
+
                     fs.writeFileSync(filePath, buffer);
                     changed = true;
                     // Store as relative path with forward slashes
@@ -258,7 +246,7 @@ function getCurrentIconPath() {
     const appearance = settings.appearance || {};
     const overrides = appearance[preset] || {};
     const suffix = preset === "manbo" ? "_mb" : "";
-    
+
     // Default to Idle icon for this preset
     let iconName = overrides["Idle"];
     if (!iconName) {
@@ -274,7 +262,7 @@ function getCurrentIconPath() {
         const now = Date.now();
         const durationS = last.id > 1739015400000 || (last.duration || 0) > 3600 ? last.duration || 0 : (last.duration || 0) * 60;
         const end = last.id + durationS * 1000;
-        
+
         if (now < end || last.duration <= 1) {
             const tags = last.tags || [];
             if (tags.length > 0) {
@@ -319,7 +307,7 @@ let saveSettingsTimeout = null;
 function saveSettings(newSettings) {
     const oldSettings = { ...settings };
     settings = { ...settings, ...newSettings };
-    
+
     // Asynchronous background write with debounce
     if (saveSettingsTimeout) clearTimeout(saveSettingsTimeout);
     saveSettingsTimeout = setTimeout(() => {
@@ -336,28 +324,30 @@ function saveSettings(newSettings) {
     if (shortcutExplicitlyChanged || autoStartExplicitlyChanged) {
         // Run in next tick to avoid blocking the IPC response
         setTimeout(() => {
-            applySettings({ 
-                shortcutChanged: shortcutExplicitlyChanged, 
-                autoStartChanged: autoStartExplicitlyChanged 
+            applySettings({
+                shortcutChanged: shortcutExplicitlyChanged,
+                autoStartChanged: autoStartExplicitlyChanged
             });
         }, 0);
     }
-    
+
     // Broadcast updates to all windows
     if (petWindow && !petWindow.isDestroyed()) petWindow.webContents.send('settings-updated', settings);
     if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.webContents.send('settings-updated', settings);
     if (inputWindow && !inputWindow.isDestroyed()) inputWindow.webContents.send('settings-updated', settings);
-    
+
     if (autoStartExplicitlyChanged) updateTrayMenu();
-    
+
     // Sync icon if tags, petIconPath or petPreset changed
     const tagsChanged = JSON.stringify(oldSettings.tags) !== JSON.stringify(settings.tags);
     const petIconChanged = newSettings.petIconPath !== undefined && oldSettings.petIconPath !== settings.petIconPath;
     const presetChanged = newSettings.petPreset !== undefined && oldSettings.petPreset !== settings.petPreset;
-    
+
     if (tagsChanged || petIconChanged || presetChanged) {
         setTimeout(syncAppIcon, 100);
     }
+
+
 }
 
 function applySettings(options = { shortcutChanged: true, autoStartChanged: true }) {
@@ -365,10 +355,10 @@ function applySettings(options = { shortcutChanged: true, autoStartChanged: true
         globalShortcut.unregisterAll();
         if (settings.shortcut && settings.shortcut.includes('+')) {
             const parts = settings.shortcut.split('+').map(p => p.trim()).filter(p => !['', '+'].includes(p));
-            if (parts.length < 2) return; 
+            if (parts.length < 2) return;
             const hasModifier = parts.some(p => ['Ctrl', 'Alt', 'Shift', 'Meta', 'CommandOrControl'].includes(p));
             const hasKey = parts.some(p => !['Ctrl', 'Alt', 'Shift', 'Meta', 'CommandOrControl'].includes(p));
-            
+
             if (hasModifier && hasKey && parts.length >= 2) {
                 try {
                     const shortcut = parts.join('+');
@@ -381,7 +371,7 @@ function applySettings(options = { shortcutChanged: true, autoStartChanged: true
                             inputWindow.hide();
                         }
                     });
-                } catch(e) { console.error('注册快捷键失败', e); }
+                } catch (e) { console.error('注册快捷键失败', e); }
             }
         }
     }
@@ -447,7 +437,7 @@ function updateTrayMenu() {
                 dialog.showMessageBox({
                     type: 'info',
                     title: '关于',
-                    message: 'ChronoPet v1.0.1',
+                    message: `ChronoPet v${app.getVersion()}`,
                     detail: 'AI 驱动的时间管理助手',
                     buttons: ['确定']
                 });
@@ -470,7 +460,7 @@ function createTray() {
     tray = new Tray(image);
     tray.setToolTip('ChronoPet');
     updateTrayMenu();
-    
+
     tray.on('click', () => {
         if (dashboardWindow && !dashboardWindow.isDestroyed()) {
             dashboardWindow.show();
@@ -482,113 +472,113 @@ function createTray() {
 }
 
 function createPetWindow() {
-  if (petWindow && !petWindow.isDestroyed()) {
-      petWindow.showInactive();
-      petWindow.setSkipTaskbar(true);
-      return;
-  }
+    if (petWindow && !petWindow.isDestroyed()) {
+        petWindow.showInactive();
+        petWindow.setSkipTaskbar(true);
+        return;
+    }
 
-  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
-  const winW = 600;
-  const winH = 800;
+    const winW = 600;
+    const winH = 800;
 
-  petWindow = new BrowserWindow({
-    width: winW,
-    height: winH,
-    x: width - (winW / 2) - 80, 
-    y: height - (winH / 2) - 100,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    resizable: false,
-    show: false, // Don't show immediately
-    skipTaskbar: true,
-    hasShadow: false,
-    icon: iconPath,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
-      nodeIntegration: false,
-      contextIsolation: true,
-    },
-  });
+    petWindow = new BrowserWindow({
+        width: winW,
+        height: winH,
+        x: width - (winW / 2) - 80,
+        y: height - (winH / 2) - 100,
+        frame: false,
+        transparent: true,
+        alwaysOnTop: true,
+        resizable: false,
+        show: false, // Don't show immediately
+        skipTaskbar: true,
+        hasShadow: false,
+        icon: iconPath,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.cjs'),
+            nodeIntegration: false,
+            contextIsolation: true,
+        },
+    });
 
-  petWindow.setIgnoreMouseEvents(true, { forward: true });
-  
-  // Use a higher level for alwaysOnTop to stay above most windows on Windows
-  petWindow.setAlwaysOnTop(true, 'screen-saver');
-  
-  petWindow.once('ready-to-show', () => {
-      petWindow.showInactive();
-      petWindow.setSkipTaskbar(true); // Force hide from taskbar
-      // Re-assert always on top on show
-      petWindow.setAlwaysOnTop(true, 'screen-saver');
-  });
+    petWindow.setIgnoreMouseEvents(true, { forward: true });
 
-  petWindow.on('closed', () => {
-      petWindow = null;
-  });
+    // Use a higher level for alwaysOnTop to stay above most windows on Windows
+    petWindow.setAlwaysOnTop(true, 'screen-saver');
 
-  const startUrl = isDev 
-    ? 'http://localhost:5173' 
-    : `file://${path.join(__dirname, '../dist/index.html')}`;
+    petWindow.once('ready-to-show', () => {
+        petWindow.showInactive();
+        petWindow.setSkipTaskbar(true); // Force hide from taskbar
+        // Re-assert always on top on show
+        petWindow.setAlwaysOnTop(true, 'screen-saver');
+    });
 
-  petWindow.loadURL(startUrl).catch(e => {
-      console.log("加载桌宠窗口失败，3秒后重试...", e);
-      setTimeout(() => {
-          if (petWindow && !petWindow.isDestroyed()) {
-              petWindow.loadURL(startUrl);
-          }
-      }, 3000);
-  });
+    petWindow.on('closed', () => {
+        petWindow = null;
+    });
+
+    const startUrl = isDev
+        ? 'http://localhost:5173'
+        : `file://${path.join(__dirname, '../dist/index.html')}`;
+
+    petWindow.loadURL(startUrl).catch(e => {
+        console.log("加载桌宠窗口失败，3秒后重试...", e);
+        setTimeout(() => {
+            if (petWindow && !petWindow.isDestroyed()) {
+                petWindow.loadURL(startUrl);
+            }
+        }, 3000);
+    });
 }
 
 function createInputWindow() {
-   if (inputWindow) return inputWindow;
+    if (inputWindow) return inputWindow;
 
-   inputWindow = new BrowserWindow({
-       width: 420,
-       height: 480,
-       show: false,
-       frame: false,
-       alwaysOnTop: true,
-       skipTaskbar: true,
-       transparent: false,
-       backgroundColor: '#00000001',
-       backgroundMaterial: 'acrylic',
-       vibrancy: 'under-window',
-       icon: iconPath,
-       webPreferences: {
-           preload: path.join(__dirname, 'preload.cjs'),
-       }
-   });
+    inputWindow = new BrowserWindow({
+        width: 420,
+        height: 480,
+        show: false,
+        frame: false,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        transparent: false,
+        backgroundColor: '#00000001',
+        backgroundMaterial: 'acrylic',
+        vibrancy: 'under-window',
+        icon: iconPath,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.cjs'),
+        }
+    });
 
-   if (settings.inputWindowPos) {
-       inputWindow.setPosition(settings.inputWindowPos.x, settings.inputWindowPos.y);
-   }
-   
-   const startUrl = isDev 
-    ? 'http://localhost:5173/#/record' 
-    : `file://${path.join(__dirname, '../dist/index.html')}#/record`;
-    
-   inputWindow.loadURL(startUrl);
-   inputWindow.setAlwaysOnTop(true, 'screen-saver');
+    if (settings.inputWindowPos) {
+        inputWindow.setPosition(settings.inputWindowPos.x, settings.inputWindowPos.y);
+    }
 
-   inputWindow.on('show', () => {
-       inputWindow.setAlwaysOnTop(true, 'screen-saver');
-   });
-   inputWindow.on('moved', () => {
-       const pos = inputWindow.getPosition();
-       settings.inputWindowPos = { x: pos[0], y: pos[1] };
-       saveSettings({}); 
-   });
+    const startUrl = isDev
+        ? 'http://localhost:5173/#/record'
+        : `file://${path.join(__dirname, '../dist/index.html')}#/record`;
 
-   inputWindow.on('close', (e) => {
-       if (!isQuitting) {
-           e.preventDefault();
-           inputWindow.hide();
-       }
-   });
+    inputWindow.loadURL(startUrl);
+    inputWindow.setAlwaysOnTop(true, 'screen-saver');
+
+    inputWindow.on('show', () => {
+        inputWindow.setAlwaysOnTop(true, 'screen-saver');
+    });
+    inputWindow.on('moved', () => {
+        const pos = inputWindow.getPosition();
+        settings.inputWindowPos = { x: pos[0], y: pos[1] };
+        saveSettings({});
+    });
+
+    inputWindow.on('close', (e) => {
+        if (!isQuitting) {
+            e.preventDefault();
+            inputWindow.hide();
+        }
+    });
 }
 
 function createDashboardWindow() {
@@ -596,7 +586,7 @@ function createDashboardWindow() {
         dashboardWindow.show();
         return;
     }
-    
+
     dashboardWindow = new BrowserWindow({
         width: 900,
         height: 650,
@@ -613,11 +603,11 @@ function createDashboardWindow() {
             preload: path.join(__dirname, 'preload.cjs'),
         }
     });
-    
-    const startUrl = isDev 
-     ? 'http://localhost:5173/#/dashboard' 
-     : `file://${path.join(__dirname, '../dist/index.html')}#/dashboard`;
-     
+
+    const startUrl = isDev
+        ? 'http://localhost:5173/#/dashboard'
+        : `file://${path.join(__dirname, '../dist/index.html')}#/dashboard`;
+
     dashboardWindow.loadURL(startUrl);
 
     dashboardWindow.on('close', (e) => {
@@ -631,29 +621,29 @@ function createDashboardWindow() {
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  app.quit();
+    app.quit();
 } else {
-  app.on('second-instance', (event, commandLine, workingDirectory) => {
-    // If user tries to run a second instance, focus our main window or show pet window
-    if (dashboardWindow && !dashboardWindow.isDestroyed()) {
-      if (dashboardWindow.isMinimized()) dashboardWindow.restore();
-      dashboardWindow.show();
-      dashboardWindow.focus();
-    } else if (petWindow && !petWindow.isDestroyed()) {
-        petWindow.showInactive();
-    }
-  });
+    app.on('second-instance', (event, commandLine, workingDirectory) => {
+        // If user tries to run a second instance, focus our main window or show pet window
+        if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+            if (dashboardWindow.isMinimized()) dashboardWindow.restore();
+            dashboardWindow.show();
+            dashboardWindow.focus();
+        } else if (petWindow && !petWindow.isDestroyed()) {
+            petWindow.showInactive();
+        }
+    });
 
-  app.whenReady().then(() => {
-    if (process.platform === 'win32') {
-      app.setAppUserModelId('com.chronopet.app');
-    }
-    createTray();
-    createPetWindow();
-    createInputWindow();
-    createDashboardWindow();
-    applySettings();
-  });
+    app.whenReady().then(() => {
+        if (process.platform === 'win32') {
+            app.setAppUserModelId('com.chronopet.app');
+        }
+        createTray();
+        createPetWindow();
+        createInputWindow();
+        createDashboardWindow();
+        applySettings();
+    });
 }
 
 app.on('before-quit', () => {
@@ -661,7 +651,7 @@ app.on('before-quit', () => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+    if (process.platform !== 'darwin') app.quit();
 });
 
 // IPC Handlers
@@ -720,15 +710,15 @@ ipcMain.on('pet-clicked', (event, type) => {
 ipcMain.on('quick-record-now', async (event, { tag }) => {
     if (inputWindow) {
         let image = null;
-        
+
         // Only capture if setting is enabled (default true)
         if (settings.quickRecordScreenshot !== false) {
             try {
-                const sources = await desktopCapturer.getSources({ 
-                    types: ['screen'], 
+                const sources = await desktopCapturer.getSources({
+                    types: ['screen'],
                     thumbnailSize: { width: 1920, height: 1080 }
                 });
-                
+
                 const primarySource = sources[0];
                 if (primarySource) {
                     image = primarySource.thumbnail.toDataURL();
@@ -749,7 +739,7 @@ ipcMain.on('open-detailed-record', () => {
         const { x, y } = screen.getCursorScreenPoint();
         const display = screen.getDisplayNearestPoint({ x, y });
         const { width: sWidth, height: sHeight, x: sX, y: sY } = display.workArea;
-        
+
         const winW = 420;
         const winH = 480; // 更精简的高度
 
@@ -784,7 +774,7 @@ ipcMain.on('open-settings-tags', () => {
     } else {
         createDashboardWindow();
         setTimeout(() => {
-            if(dashboardWindow) {
+            if (dashboardWindow) {
                 dashboardWindow.show();
                 dashboardWindow.webContents.send('switch-tab', 'tags');
                 setTimeout(() => dashboardWindow.webContents.send('scroll-to-tags'), 500);
@@ -797,32 +787,32 @@ ipcMain.on('open-settings-tags', () => {
 ipcMain.handle('generate-icon', async (event, { prompt, model, apiKey, stylePrompt, refImage }) => {
     try {
         const fetch = (await import('node-fetch')).default;
-        
+
         // 默认使用 Qwen-Image-Edit 或者是 Flux
         // 注意：用户给的代码是 Qwen-Image-Edit-2511，这通常需要 image_url。
         // 如果是纯文生图，我们可能需要用 Wanx 或 Flux。
         // 但用户的 Prompt 示例 "给图中的狗..." 是编辑。
         // 而现在的需求是 "生成新标签图标"，这应该是文生图。
         // 假设 ModelScope 的此模型也支持纯文生图，或者我们使用 Flux。
-        
+
         // 为了稳定性，我们将 prompt 包装一下以符合苹果图标风格
         // Default Style Prompt
         const defaultStyle = stylePrompt || '3D clay render, anthropomorphic, abstract, cute, retro-futuristic, apple emoji style, minimalist, white background, high quality, soft lighting';
         const fullPrompt = `concept art of a ${prompt}, ${defaultStyle}, 8k resolution`;
-        
+
         console.log('[Generate Icon] Prompt:', fullPrompt);
 
         const baseUrl = 'https://api-inference.modelscope.cn/v1/images/generations';
-        
+
         // Fix Typo: FLUX.1-dev
         const useModel = model || 'black-forest-labs/FLUX.2-dev'; // Image editing model
-        
+
         const payload = {
             model: useModel,
             prompt: fullPrompt
             // n: 1, size: "1024x1024" - Removed to fix 400
         };
-        
+
         // ModelScope may require pure base64 without data URI prefix
         console.log('[Generate Icon] refImage received:', refImage ? `${refImage.substring(0, 50)}...` : 'null');
         if (refImage && (useModel.includes('FLUX') || useModel.includes('Qwen'))) {
@@ -834,12 +824,9 @@ ipcMain.handle('generate-icon', async (event, { prompt, model, apiKey, styleProm
             payload.image_url = [imageData];
             console.log('[Generate Icon] image_url added (base64, length:', imageData.length, ')');
         }
-        
+
         // Use built-in key if model is Flux/SDXL and no key provided 
         let useApiKey = apiKey;
-        if (!useApiKey && (useModel.includes('FLUX') || useModel.includes('stabilityai'))) {
-             useApiKey = process.env.MODELSCOPE_API_KEY; 
-        }
 
         const response = await fetch(baseUrl, {
             method: 'POST',
@@ -851,7 +838,7 @@ ipcMain.handle('generate-icon', async (event, { prompt, model, apiKey, styleProm
             },
             body: JSON.stringify(payload)
         });
-        
+
         let result;
         try {
             result = await response.json();
@@ -864,37 +851,37 @@ ipcMain.handle('generate-icon', async (event, { prompt, model, apiKey, styleProm
             console.error('[Generate Icon] Error Body:', JSON.stringify(result));
             throw new Error(`API Error: ${response.status} ${result.error?.message || result.message || JSON.stringify(result)}`);
         }
-        
+
         // Handle Sync Response immediately
         const data = result;
-        
+
         // Handle Sync Response immediately
         if (data.output || (data.data && data.data[0])) {
-             const url = data.output?.url || data.data?.[0]?.url;
-             if (url) {
-                  const imgRes = await fetch(url);
-                  const imgBuffer = await imgRes.arrayBuffer();
-                  const base64 = Buffer.from(imgBuffer).toString('base64');
-                  return { success: true, image: `data:image/png;base64,${base64}` };
-             }
+            const url = data.output?.url || data.data?.[0]?.url;
+            if (url) {
+                const imgRes = await fetch(url);
+                const imgBuffer = await imgRes.arrayBuffer();
+                const base64 = Buffer.from(imgBuffer).toString('base64');
+                return { success: true, image: `data:image/png;base64,${base64}` };
+            }
         }
 
         const taskId = data.task_id;
         if (!taskId) throw new Error("No Task ID returned and no sync data");
-        
+
         // 轮询任务状态
         let attempts = 0;
         while (attempts < 60) { // 最多等待 60秒
             await new Promise(r => setTimeout(r, 1000));
-            
+
             const taskRes = await fetch(`https://api-inference.modelscope.cn/v1/tasks/${taskId}`, {
                 method: 'GET',
-                headers: { 
+                headers: {
                     'Authorization': `Bearer ${useApiKey}`,
                     'X-ModelScope-Task-Type': 'image_generation' // Required for Polling
                 }
             });
-            
+
             if (taskRes.ok) {
                 const taskData = await taskRes.json();
                 if (taskData.task_status === 'SUCCEED') {
@@ -913,7 +900,7 @@ ipcMain.handle('generate-icon', async (event, { prompt, model, apiKey, styleProm
             attempts++;
         }
         return { success: false, error: 'Timeout' };
-        
+
     } catch (error) {
         console.error('Icon Generation Failed:', error);
         return { success: false, error: error.message };
@@ -941,9 +928,9 @@ nativeTheme.on('updated', () => {
         const { systemPreferences } = require('electron');
         accent = systemPreferences.getAccentColor();
     }
-    
+
     const themeData = { isDark, accent };
-    
+
     if (dashboardWindow && !dashboardWindow.isDestroyed()) {
         dashboardWindow.webContents.send('theme-updated', themeData);
     }
@@ -958,42 +945,42 @@ nativeTheme.on('updated', () => {
 ipcMain.on('capture-screen', async (event, options = {}) => {
     try {
         const { width, height } = screen.getPrimaryDisplay().size;
-        const fetchWidth = width > 1920 ? width : 1920; 
+        const fetchWidth = width > 1920 ? width : 1920;
         const fetchHeight = height > 1080 ? height : 1080;
 
-        const sources = await desktopCapturer.getSources({ 
-            types: ['screen'], 
-            thumbnailSize: { width: fetchWidth, height: fetchHeight } 
+        const sources = await desktopCapturer.getSources({
+            types: ['screen'],
+            thumbnailSize: { width: fetchWidth, height: fetchHeight }
         });
-        
+
         const primarySource = sources[0];
         if (primarySource) {
             const date = new Date();
             const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
             const targetSubDir = path.join(screenshotsDir, dateStr);
-            
+
             if (!fs.existsSync(targetSubDir)) {
                 fs.mkdirSync(targetSubDir, { recursive: true });
             }
-            
+
             const h = String(date.getHours()).padStart(2, '0');
             const m = String(date.getMinutes()).padStart(2, '0');
             const s = String(date.getSeconds()).padStart(2, '0');
             const timeStr = `${h}${m}${s}`;
             const fileName = `manual_${dateStr.replace(/-/g, '')}_${timeStr}.png`;
             const filePath = path.join(targetSubDir, fileName);
-            
+
             const buffer = primarySource.thumbnail.toPNG();
             fs.writeFileSync(filePath, buffer);
-            
+
             const fileUrl = `file://${filePath}`;
             const base64 = primarySource.thumbnail.toDataURL();
-            
-            event.reply('screen-captured', { 
-                success: true, 
-                image: options.saveToFile ? fileUrl : base64, 
+
+            event.reply('screen-captured', {
+                success: true,
+                image: options.saveToFile ? fileUrl : base64,
                 base64: base64,
-                path: filePath 
+                path: filePath
             });
         } else {
             event.reply('screen-captured', { success: false, error: 'No screen source found.' });
@@ -1008,7 +995,7 @@ ipcMain.on('capture-screen', async (event, options = {}) => {
 ipcMain.handle('cleanup-screenshots', async () => {
     try {
         const screenshotsBaseDir = path.join(app.getPath('userData'), 'screenshots');
-        
+
         // 1. Delete files
         if (fs.existsSync(screenshotsBaseDir)) {
             const rmDir = (dir) => {
@@ -1017,9 +1004,9 @@ ipcMain.handle('cleanup-screenshots', async () => {
                     const p = path.join(dir, file);
                     if (fs.statSync(p).isDirectory()) {
                         rmDir(p);
-                        try { fs.rmdirSync(p); } catch(e) {}
+                        try { fs.rmdirSync(p); } catch (e) { }
                     } else {
-                        try { fs.unlinkSync(p); } catch(e) {}
+                        try { fs.unlinkSync(p); } catch (e) { }
                     }
                 }
             };
@@ -1048,7 +1035,7 @@ ipcMain.on('resize-input-window', (event, { height }) => {
         const [w, h] = inputWindow.getSize();
         const newHeight = Math.round(height);
         if (Math.abs(h - newHeight) < 2) return; // Ignore small changes to prevent feedback loop
-        
+
         const { height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
         const maxHeight = Math.round(screenHeight * 0.9);
         inputWindow.setSize(w, Math.min(maxHeight, Math.max(120, newHeight)));
@@ -1120,18 +1107,18 @@ ipcMain.on('stop-current-record', (event) => {
         // Heuristic for duration unit
         const durationS = last.id > 1739015400000 || (last.duration || 0) > 3600 ? last.duration || 0 : (last.duration || 0) * 60;
         const currentEnd = last.id + durationS * 1000;
-        
+
         // Correct duration to current elapsed seconds
         const elapsedSeconds = Math.max(1, Math.round((now - last.id) / 1000));
-        
+
         if (now < currentEnd || !last.duration) {
             last.duration = elapsedSeconds;
             writeRecords(records); // Requires full rewrite because it modifies existing line
         }
-        
+
         // Always sync icon and notify windows when stopping, even if time already passed
         setTimeout(syncAppIcon, 100);
-        
+
         if (dashboardWindow && !dashboardWindow.isDestroyed()) {
             dashboardWindow.webContents.send('records-updated');
         }
@@ -1151,7 +1138,7 @@ ipcMain.on('update-record-parts', (event, { id, task, desc, tags }) => {
         if (desc !== undefined) updated.desc = desc;
         if (tags !== undefined) updated.tags = tags;
         updated.aiSummary = true;
-        
+
         records[index] = ensureRecordOptimized(updated);
         writeRecords(records);
         setTimeout(syncAppIcon, 100);
@@ -1171,13 +1158,13 @@ ipcMain.on('update-last-record-desc', (event, summary) => {
         if (lines.length > 0) {
             const taskName = lines[0].trim();
             const newDesc = lines.length > 1 ? lines.slice(1).join('\n') : '';
-            
+
             const lastIdx = records.length - 1;
             records[lastIdx].task = taskName || records[lastIdx].task;
             records[lastIdx].desc = newDesc || records[lastIdx].desc;
-            
+
             fs.writeFileSync(recordsPath, JSON.stringify(records, null, 2));
-            
+
             if (dashboardWindow && !dashboardWindow.isDestroyed()) {
                 dashboardWindow.webContents.send('records-updated');
             }
@@ -1209,7 +1196,7 @@ ipcMain.on('resize-input-window', (event, { width, height }) => {
 
 ipcMain.on('set-pinned', (event, pinned) => {
     if (inputWindow) {
-        inputWindow.setAlwaysOnTop(pinned); 
+        inputWindow.setAlwaysOnTop(pinned);
     }
 });
 
@@ -1227,7 +1214,7 @@ let previewWindow = null;
 ipcMain.on('show-image-context-menu', (event, imageUrl) => {
     try {
         if (!imageUrl) return;
-        
+
         // Helper to show menu for a path
         const showMenuForPath = (filePath) => {
             const menu = Menu.buildFromTemplate([
@@ -1265,7 +1252,7 @@ ipcMain.on('show-image-context-menu', (event, imageUrl) => {
                 const base64Data = matches[2];
                 const buffer = Buffer.from(base64Data, 'base64');
                 const tempPath = path.join(os.tmpdir(), `chrono_preview_${Date.now()}.${ext}`);
-                
+
                 fs.writeFile(tempPath, buffer, (err) => {
                     if (!err) showMenuForPath(tempPath);
                 });
@@ -1300,14 +1287,14 @@ ipcMain.on('open-preview', (event, imageUrl) => {
                 });
             }
         } else {
-             let targetPath = imageUrl;
-             if (imageUrl.startsWith('chrono-img://')) {
-                 const fileName = imageUrl.replace('chrono-img://', '');
-                 targetPath = path.join(screenshotsDir, fileName);
-             }
-             shell.openPath(targetPath).then(errorMessage => {
-                 if (errorMessage) shell.openExternal(targetPath);
-             });
+            let targetPath = imageUrl;
+            if (imageUrl.startsWith('chrono-img://')) {
+                const fileName = imageUrl.replace('chrono-img://', '');
+                targetPath = path.join(screenshotsDir, fileName);
+            }
+            shell.openPath(targetPath).then(errorMessage => {
+                if (errorMessage) shell.openExternal(targetPath);
+            });
         }
     } catch (e) {
         console.error('Open preview error:', e);
@@ -1316,50 +1303,48 @@ ipcMain.on('open-preview', (event, imageUrl) => {
 
 
 // AI Summary - 仅支持 ModelScope
-// 内置模型列表（使用内置 API key）
-const BUILTIN_MODELS = ['moonshotai/Kimi-K2.5', 'Qwen/Qwen3-VL-235B-A22B-Instruct'];
-const BUILTIN_API_KEY = process.env.MODELSCOPE_API_KEY;
 
 ipcMain.on('request-ai-summary', async (event, data) => {
     const { text, screenshot, image, apiKey, model } = data;
     const imgData = screenshot || image;
     const useModel = model || 'moonshotai/Kimi-K2.5';
-    
+
     console.log('[AI] Request Data Keys:', Object.keys(data));
     console.log('[AI] imgData present:', !!imgData, 'Length:', imgData ? imgData.length : 0);
 
-    const isBuiltinModel = BUILTIN_MODELS.includes(useModel);
-    const useApiKey = isBuiltinModel ? BUILTIN_API_KEY : apiKey;
-    
+    const useApiKey = apiKey;
+
     if (!useApiKey) {
-        return event.reply('ai-summary-response', { 
-            success: false, 
-            error: '自定义模型需要提供 API 密钥，请在设置中配置' 
+        return event.reply('ai-summary-response', {
+            ...data,
+            success: false,
+            error: '缺少 API 密钥，请在面板的设置中配置 ModelScope API 密钥'
         });
     }
 
     if (!text && !imgData) {
-        return event.reply('ai-summary-response', { 
-            success: false, 
-            error: '未包含有效的截图或文本内容' 
+        return event.reply('ai-summary-response', {
+            ...data,
+            success: false,
+            error: '未包含有效的截图或文本内容'
         });
     }
-    
+
     try {
         let messages = [];
         let actualModel = useModel;
-        
+
         // 如果有截图，使用视觉模型分析
         if (imgData) {
             // 如果当前模型不是视觉模型，则切换
             const isVisionName = useModel.toLowerCase().includes('vl') || useModel.toLowerCase().includes('vision');
             const isWhitelisted = useModel.includes('Kimi-K2.5'); // User confirmed Kimi is vision
-            
+
             if (!isVisionName && !isWhitelisted) {
                 actualModel = 'Qwen/Qwen3-VL-235B-A22B-Instruct';
                 console.log('[AI] 自动切换到视觉模型:', actualModel);
             }
-            
+
             let base64Image = '';
             if (imgData.startsWith('chrono-img://')) {
                 const fileName = imgData.replace('chrono-img://', '');
@@ -1370,7 +1355,7 @@ ipcMain.on('request-ai-summary', async (event, data) => {
             } else {
                 base64Image = imgData.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
             }
-            
+
             if (!base64Image) throw new Error('无法读取图片数据');
             console.log('[AI] 截图大小:', Math.round(base64Image.length / 1024), 'KB');
             messages = [{
@@ -1388,12 +1373,12 @@ ipcMain.on('request-ai-summary', async (event, data) => {
                 content: `请用第一人称中文简洁总结以下内容（不超过100字）：\n\n${text}`
             }];
         }
-        
+
         console.log('[AI] 发送请求到 ModelScope, 模型:', actualModel);
-        
+
         const response = await fetch('https://api-inference.modelscope.cn/v1/chat/completions', {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${useApiKey}`
             },
@@ -1403,18 +1388,18 @@ ipcMain.on('request-ai-summary', async (event, data) => {
                 max_tokens: 500
             })
         });
-        
+
         const result = await response.json();
         console.log('[AI] API 响应:', JSON.stringify(result).substring(0, 500));
-        
+
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${result.error?.message || result.message || JSON.stringify(result)}`);
         }
-        
+
         if (result.error) {
             throw new Error(result.error.message || JSON.stringify(result.error));
         }
-        
+
         const summary = result.choices?.[0]?.message?.content || '识别失败';
         console.log('[AI] 识别成功:', summary.substring(0, 100));
         event.reply('ai-summary-response', { ...data, success: true, summary, aiSummary: true });
@@ -1434,41 +1419,41 @@ ipcMain.handle('check-for-updates', async () => {
         // GitHub API: Get latest release
         const repo = 'HOnnTaka/ChronoPet'; // Based on your workspace info
         const url = `https://api.github.com/repos/${repo}/releases/latest`;
-        
+
         console.log('[Updater] Checking updates from:', url);
         const response = await fetch(url, {
             headers: { 'User-Agent': 'ChronoPet-App' }
         });
-        
+
         if (response.status === 404) {
-             console.log('[Updater] Latest release not found, trying releases list for pre-releases...');
-             // Try getting list of releases (includes pre-releases)
-             const releasesUrl = `https://api.github.com/repos/${repo}/releases`;
-             const releasesRes = await fetch(releasesUrl, { headers: { 'User-Agent': 'ChronoPet-App' } });
-             
-             if (releasesRes.ok) {
-                 const releases = await releasesRes.json();
-                 if (Array.isArray(releases) && releases.length > 0) {
-                     // Use the first one (most recent, even if pre-release)
-                     const data = releases[0];
-                     console.log('[Updater] Found pre-release:', data.tag_name);
-                     return processReleaseData(data, currentVersion);
-                 } else {
-                     console.log('[Updater] Releases list is empty or not an array:', JSON.stringify(releases));
-                 }
-             } else {
-                 console.log('[Updater] Failed to fetch releases list:', releasesRes.status);
-             }
-             return { success: false, error: 'GitHub 仓库未找到任何 Release (包括 Pre-release)', currentVersion };
+            console.log('[Updater] Latest release not found, trying releases list for pre-releases...');
+            // Try getting list of releases (includes pre-releases)
+            const releasesUrl = `https://api.github.com/repos/${repo}/releases`;
+            const releasesRes = await fetch(releasesUrl, { headers: { 'User-Agent': 'ChronoPet-App' } });
+
+            if (releasesRes.ok) {
+                const releases = await releasesRes.json();
+                if (Array.isArray(releases) && releases.length > 0) {
+                    // Use the first one (most recent, even if pre-release)
+                    const data = releases[0];
+                    console.log('[Updater] Found pre-release:', data.tag_name);
+                    return processReleaseData(data, currentVersion);
+                } else {
+                    console.log('[Updater] Releases list is empty or not an array:', JSON.stringify(releases));
+                }
+            } else {
+                console.log('[Updater] Failed to fetch releases list:', releasesRes.status);
+            }
+            return { success: false, error: 'GitHub 仓库未找到任何 Release (包括 Pre-release)', currentVersion };
         }
 
         if (!response.ok) {
             throw new Error(`GitHub API Error: ${response.status}`);
         }
-        
+
         const data = await response.json();
         return processReleaseData(data, currentVersion);
-        
+
     } catch (e) {
         console.error('[Updater] Check failed', e);
         return { success: false, error: e.message, currentVersion: app.getVersion() };
@@ -1476,19 +1461,19 @@ ipcMain.handle('check-for-updates', async () => {
 });
 
 function processReleaseData(data, currentVersion) {
-    const latestTag = data.tag_name; 
+    const latestTag = data.tag_name;
     const latestVersion = latestTag.replace(/^v/, '').split('-')[0]; // Remove -alpha suffix for comparison setup
-    
+
     // Improved Semantic Versioning Comparison for semver-ish (major.minor.patch)
     // Note: This simple comparison ignores -alpha/-beta suffixes for correctness, 
     // it treats 1.0.1-alpha as "1.0.1". 
     // If current is 1.0.1, and remote is 1.0.1-alpha, we might not want to "downgrade" or notify.
     // BUT usually releases are strictly increasing.
     // Let's stick to numerical comparison of M.m.p
-    
+
     const v1 = currentVersion.split('.').map(Number);
     const v2 = latestVersion.split('.').map(Number);
-    
+
     let updateAvailable = false;
     for (let i = 0; i < 3; i++) {
         const a = v1[i] || 0;
@@ -1496,9 +1481,9 @@ function processReleaseData(data, currentVersion) {
         if (a < b) { updateAvailable = true; break; }
         if (a > b) { break; }
     }
-    
+
     // If strict equality, usually we don't update.
-    
+
     return {
         success: true,
         updateAvailable,
@@ -1515,24 +1500,23 @@ function processReleaseData(data, currentVersion) {
 ipcMain.on('ai-chat', async (event, data) => {
     const { messages, apiKey, model } = data;
     const useModel = model || 'moonshotai/Kimi-K2.5';
-    
-    const isBuiltinModel = BUILTIN_MODELS.includes(useModel);
-    const useApiKey = isBuiltinModel ? BUILTIN_API_KEY : apiKey;
-    
+
+    const useApiKey = apiKey;
+
     if (!useApiKey) {
-        return event.reply('ai-chat-response', { 
-            success: false, 
-            error: '需要 API 密钥' 
+        return event.reply('ai-chat-response', {
+            success: false,
+            error: '缺少 API 密钥，请在设置中配置 ModelScope API 密钥'
         });
     }
 
     try {
         const fetch = (await import('node-fetch')).default;
         console.log('[AI Chat] Stream Request Model:', useModel);
-        
+
         const response = await fetch('https://api-inference.modelscope.cn/v1/chat/completions', {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${useApiKey}`,
                 'Accept': 'text/event-stream'
@@ -1575,7 +1559,7 @@ ipcMain.on('ai-chat', async (event, data) => {
                 }
             }
         }
-        
+
         event.reply('ai-chat-end', { success: true });
 
     } catch (error) {
@@ -1598,7 +1582,7 @@ ipcMain.on('open-folder', () => {
         } else {
             shell.openPath(app.getPath('userData'));
         }
-    } catch(e) {
+    } catch (e) {
         shell.openPath(app.getPath('userData'));
     }
 });

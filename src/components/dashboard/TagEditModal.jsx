@@ -21,15 +21,28 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, settings }) => {
         alignItems: "center",
         justifyContent: "center",
         zIndex: 1100,
-        background: "rgba(0,0,0,0.4)",
+        background: "transparent",
         padding: 16,
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) setEditingTag(null);
       }}
     >
+      {/* Dimmer Background Sibling */}
       <div
-        className={`win11-card ${settings?.win12Experimental ? "win12-experimental" : ""}`}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: settings?.win12Experimental ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.4)",
+          pointerEvents: "none",
+          zIndex: -1
+        }}
+      />
+      <div
+        className={`win11-card ${settings?.win12Experimental ? "liquid-modal" : ""}`}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: 380,
@@ -39,21 +52,22 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, settings }) => {
           animation: "modalScaleIn 0.25s cubic-bezier(0.1, 0.9, 0.2, 1)",
           overflow: "hidden",
           maxHeight: "85vh",
-          backdropFilter: settings?.win12Experimental ? "saturate(200%)" : "blur(50px) saturate(180%)",
-          backgroundColor: settings?.win12Experimental ? "var(--win12-tint)" : "var(--bg-active)",
-          backgroundImage:
-            settings?.win12Experimental ? "none" : (
-              "linear-gradient(to bottom right, transparent, color-mix(in srgb, var(--accent), transparent 90%))"
-            ),
-          border: "1px solid var(--border-color)",
-          boxShadow: "0 20px 50px rgba(0,0,0,0.25), 0 0 0 1px inset rgba(255, 255, 255, 0.1)",
+          ...(settings?.win12Experimental ? {} : {
+            backdropFilter: "blur(50px) saturate(180%)",
+            WebkitBackdropFilter: "blur(50px) saturate(180%)",
+            backgroundColor: "var(--bg-active)",
+            backgroundImage: "linear-gradient(to bottom right, transparent, color-mix(in srgb, var(--accent), transparent 90%))",
+            border: "1px solid var(--border-color)",
+            borderRadius: "8px",
+            boxShadow: "0 20px 50px rgba(0,0,0,0.25), 0 0 0 1px inset rgba(255, 255, 255, 0.1)",
+          }),
         }}
       >
         {/* Header */}
         <div
           style={{
             padding: "6px 20px",
-            borderBottom: "1px solid var(--border-color)",
+            borderBottom: settings?.win12Experimental ? "none" : "1px solid var(--border-color)",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -65,9 +79,9 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, settings }) => {
           >
             {editingTag.isIdle ?
               "设置空闲状态形象"
-            : editingTag.index !== undefined ?
-              "编辑标签"
-            : "添加新标签"}
+              : editingTag.index !== undefined ?
+                "编辑标签"
+                : "添加新标签"}
           </h3>
           <div style={{ display: "flex", background: "var(--bg-secondary)", borderRadius: 6, padding: 2 }}>
             <button
@@ -276,7 +290,7 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, settings }) => {
                         );
                       })}
                     </div>
-                  : <div
+                    : <div
                       onClick={() => tagIconFileRef.current?.click()}
                       style={{
                         width: "100%",
@@ -328,7 +342,7 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, settings }) => {
                             点击更换
                           </div>
                         </div>
-                      : <>
+                        : <>
                           <div
                             style={{
                               width: 36,
@@ -531,7 +545,7 @@ const TagEditModal = ({ editingTag, setEditingTag, onSave, settings }) => {
             onClick={
               tab === "basic" ?
                 () => setTab("appearance") // Next button now just switches tab
-              : onSave
+                : onSave
             }
             style={{
               background: "var(--accent)",

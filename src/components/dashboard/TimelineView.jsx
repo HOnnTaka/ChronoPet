@@ -254,7 +254,7 @@ const LiveRecordNode = ({ record, index, accent }) => {
       >
         {isActive ?
           <LiveDuration start={record.id} />
-        : formatDurationS(Math.round(durationMs / 1000))}
+          : formatDurationS(Math.round(durationMs / 1000))}
       </div>
     </div>
   );
@@ -434,8 +434,48 @@ export default function TimelineView({
           }}
         ></div>
 
-        {(timeFilter === "today" || timeFilter === "all") && filteredRecords.length > 0 && (
-          <LiveTimelineHeader lastRecord={filteredRecords[0]} onInsert={handleInsertGap} accent={accent} />
+        {(timeFilter === "today" || timeFilter === "all") && (
+          filteredRecords.length > 0 ? (
+            <LiveTimelineHeader lastRecord={filteredRecords[0]} onInsert={handleInsertGap} accent={accent} />
+          ) : (timeFilter === "today") ? (
+            /* 特殊情况：今天还没有任何记录，显示从今天凌晨开始的空闲 */
+            <div style={{ display: "flex", margin: "24px 0 16px 60px", position: "relative" }}>
+              <div
+                style={{
+                  flex: 1,
+                  padding: "16px",
+                  background: "rgba(128, 128, 128, 0.04)",
+                  border: "1px dashed var(--border-color)",
+                  borderRadius: "8px",
+                  color: "var(--text-secondary)",
+                  fontSize: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                }}
+              >
+                <Clock size={16} opacity={0.6} />
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontWeight: 600 }}>今日暂无记录</span>
+                  <div style={{ fontSize: "0.75rem", opacity: 0.8, marginTop: 4 }}>
+                    自今日 00:00 起一直处于空闲状态
+                  </div>
+                </div>
+                <button
+                  className="btn primary"
+                  onClick={() => {
+                    const today0 = new Date();
+                    today0.setHours(0, 0, 0, 0);
+                    const now = Date.now();
+                    handleInsertGap(today0.getTime(), Math.floor((now - today0.getTime()) / 1000));
+                  }}
+                  style={{ padding: "6px 16px", fontSize: "0.85rem", background: accent, borderColor: "transparent" }}
+                >
+                  <Plus size={14} style={{ marginRight: 6 }} /> 补录今日
+                </button>
+              </div>
+            </div>
+          ) : null
         )}
 
         {filteredRecords.map((r, index) => {

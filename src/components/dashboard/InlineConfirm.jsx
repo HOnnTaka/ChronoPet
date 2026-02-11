@@ -58,10 +58,8 @@ const InlineConfirm = ({ onConfirm, onCancel, title = "确认删除?", style = {
         <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>{title}</span>
         <button
           onClick={onConfirm}
-          className="btn"
+          className="btn danger"
           style={{
-            background: "#d13438",
-            color: "white",
             border: "none",
             borderRadius: 4,
             padding: "2px 10px",

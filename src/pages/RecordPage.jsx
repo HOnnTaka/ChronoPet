@@ -24,31 +24,30 @@ const AlertDialog = ({ message, onClose, onConfirm, showCancel, accent, settings
       left: 0,
       right: 0,
       bottom: 0,
-      background: "rgba(0,0,0,0.4)",
+      background: settings.win12Experimental ? "transparent" : "rgba(0,0,0,0.4)",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
       zIndex: 9999,
       padding: 16,
-      backdropFilter: settings.win12Experimental ? "blur(4px)" : "none",
     }}
   >
     <div
-      className={`win11-card ${settings.win12Experimental ? "win12-experimental" : ""}`}
+      className={`win11-card ${settings.win12Experimental ? "liquid-modal" : ""}`}
       style={{
         padding: "16px 20px",
         width: 320,
         maxWidth: "90%",
-        boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
-        border: "1px solid var(--border-color)",
-        borderRadius: settings.win12Experimental ? 20 : 12,
         animation: "alertScaleIn 0.25s cubic-bezier(0.1, 0.9, 0.2, 1)",
-        backdropFilter: settings.win12Experimental ? "saturate(200%)" : "blur(40px)",
-        backgroundColor: settings.win12Experimental ? "var(--win12-tint)" : "var(--bg-active)",
-        backgroundImage:
-          settings.win12Experimental ? "none" : (
-            "linear-gradient(to bottom right, transparent, color-mix(in srgb, var(--accent), transparent 90%))"
-          ),
+        ...(settings.win12Experimental ? {} : {
+          boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
+          border: "1px solid var(--border-color)",
+          borderRadius: 12,
+          backdropFilter: "blur(40px)",
+          WebkitBackdropFilter: "blur(40px)",
+          backgroundColor: "var(--bg-active)",
+          backgroundImage: "linear-gradient(to bottom right, transparent, color-mix(in srgb, var(--accent), transparent 90%))",
+        }),
       }}
     >
       <h3 className="title" style={{ marginBottom: 12, fontSize: "0.9rem" }}>
@@ -137,11 +136,16 @@ export default function RecordPage() {
   const [screenshots, setScreenshots] = useState([]);
   const [accent, setAccent] = useState("#0078d4");
   const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const [settings, setSettings] = useState({ aiModel: "moonshotai/Kimi-K2.5", aiApiKey: "", customModel: "" });
   const [pinned, setPinned] = useState(true);
   const [duration, setDuration] = useState(0); // Default 0 for 'Now'
   const [timingMode, setTimingMode] = useState(null); // null | 'retro' | 'timer'
+
+  useEffect(() => {
+    isDraggingRef.current = isDragging;
+  }, [isDragging]);
 
   useEffect(() => {
     if (window.electronAPI) window.electronAPI.send("set-pinned", pinned);
@@ -210,7 +214,6 @@ export default function RecordPage() {
 
   useEffect(() => {
     let mounted = true;
-
     // fetchData is called via another effect or manually if needed
     // fetchData(); removed to fix lint
 
@@ -240,8 +243,8 @@ export default function RecordPage() {
     const onScreenCaptured = async (result) => {
       const img =
         result && result.success ? result.image
-        : typeof result === "string" ? result
-        : null;
+          : typeof result === "string" ? result
+            : null;
       if (mounted && img) {
         setScreenshots((prev) => [...prev, img]);
 
@@ -280,11 +283,16 @@ export default function RecordPage() {
     let removeRecordsUpdateListener = null;
     let removeQuickRecord = null;
     let removeThemeListener = null;
+    let removeSettingsListener = null;
 
     if (window.electronAPI) {
       removeThemeListener = window.electronAPI.receive("theme-updated", (data) => {
         if (data.accent) setAccent("#" + data.accent);
       });
+      removeSettingsListener = window.electronAPI.receive("settings-updated", (s) => {
+        if (s) setSettings(s);
+      });
+
       removeCaptureListener = window.electronAPI.receive("screen-captured", onScreenCaptured);
       removeAiListener = window.electronAPI.receive("ai-summary-response", (result) => {
         setAiLoading(false);
@@ -333,12 +341,13 @@ export default function RecordPage() {
       if (removeAiListener) removeAiListener();
       if (removeRecordsUpdateListener) removeRecordsUpdateListener();
       if (removeQuickRecord) removeQuickRecord();
+      if (removeSettingsListener) removeSettingsListener();
     };
   }, [fetchData]); // Added fetchData to dependency array
 
   // 自动调整窗口大小
   // Auto-resize removed
-  useEffect(() => {}, []);
+  useEffect(() => { }, []);
 
   const handleMouseDown = (e) => {
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.closest(".no-drag")) return;
@@ -369,10 +378,14 @@ export default function RecordPage() {
     if (!window.electronAPI) return;
 
     const observer = new ResizeObserver((entries) => {
+      // Prevent resize loop during drag
+      if (isDraggingRef.current) return;
+
       for (let entry of entries) {
         // 获取内容实际高度并发送给主进程
         const height = entry.target.scrollHeight;
-        window.electronAPI.send("resize-input-window", { height: height + 2 }); // +2 for border
+        if (Math.abs(height - window.innerHeight) < 4) return; // Prevent micro-adjustments loop
+        window.electronAPI.send("resize-input-window", { height: height }); // Removed +2 to stop growth loop
       }
     });
 
@@ -399,15 +412,9 @@ export default function RecordPage() {
   };
 
   const handleAI = () => {
-    // 检查是否是内置模型
-    const BUILTIN_MODELS = ["moonshotai/Kimi-K2.5", "Qwen/Qwen3-VL-235B-A22B-Instruct"];
-    const actualModel =
-      settings.aiModel === "custom" ? settings.customModel : settings.aiModel || "moonshotai/Kimi-K2.5";
-    const isBuiltinModel = BUILTIN_MODELS.includes(actualModel);
-
-    // 自定义模型需要 API key
-    if (!isBuiltinModel && !settings.aiApiKey) {
-      setAlertConfig({ message: "自定义模型需要配置 API 密钥，请在设置中配置" });
+    // 所有模型均需要用户提供 API Key
+    if (!settings.aiApiKey) {
+      setAlertConfig({ message: "请先在面板的设置中配置 ModelScope API 密钥" });
       return;
     }
 
@@ -507,7 +514,7 @@ export default function RecordPage() {
   return (
     <div
       ref={containerRef}
-      className={`win-container ${isFocused ? "" : "inactive"} ${settings.win12Experimental ? "win12-experimental" : ""}`}
+      className={`win-container ${isFocused ? "" : "inactive"} ${settings.win12Experimental ? "liquid-ui" : ""}`}
     >
       <div
         onMouseDown={handleMouseDown}
@@ -519,11 +526,11 @@ export default function RecordPage() {
           padding: "0 16px",
           cursor: isDragging ? "grabbing" : "grab",
           userSelect: "none",
-          borderBottom: "1px solid var(--border-color)",
+          borderBottom: settings.win12Experimental ? "none" : "1px solid var(--border-color)",
           background:
             settings.win12Experimental ? "transparent"
-            : isFocused ? "rgba(255,255,255,0.05)"
-            : "transparent",
+              : isFocused ? "rgba(255,255,255,0.05)"
+                : "transparent",
         }}
       >
         <div
@@ -564,7 +571,7 @@ export default function RecordPage() {
           >
             {pinned ?
               <Pin size={16} />
-            : <PinOff size={16} />}
+              : <PinOff size={16} />}
           </button>
           <button
             className="no-drag"
@@ -605,7 +612,7 @@ export default function RecordPage() {
         <div style={{ marginBottom: "12px", display: "flex", flexWrap: "wrap", gap: "6px" }} className="no-drag">
           {(settings.tags && settings.tags.length > 0 ?
             settings.tags
-          : [
+            : [
               { name: "工作", color: "#6366f1" },
               { name: "学习", color: "#a855f7" },
               { name: "摸鱼", color: "#f43f5e" },
@@ -675,29 +682,29 @@ export default function RecordPage() {
             style={{
               background:
                 aiStatus === "success" ? `color-mix(in srgb, ${accent} 20%, transparent)`
-                : aiStatus === "error" ? "rgba(239, 68, 68, 0.2)"
-                : undefined,
+                  : aiStatus === "error" ? "rgba(239, 68, 68, 0.2)"
+                    : undefined,
               borderColor:
                 aiStatus === "success" ? accent
-                : aiStatus === "error" ? "rgba(239, 68, 68, 0.5)"
-                : undefined,
+                  : aiStatus === "error" ? "rgba(239, 68, 68, 0.5)"
+                    : undefined,
             }}
           >
             {aiStatus === "loading" ?
               <>
                 <Loader2 size={14} style={{ color: accent, animation: "spin 1s linear infinite" }} /> 分析中...
               </>
-            : aiStatus === "success" ?
-              <>
-                <Check size={14} style={{ color: accent }} /> 完成
-              </>
-            : aiStatus === "error" ?
-              <>
-                <X size={14} style={{ color: "#ef4444" }} /> 失败
-              </>
-            : <>
-                <Sparkles size={14} style={{ color: accent }} /> AI识别
-              </>
+              : aiStatus === "success" ?
+                <>
+                  <Check size={14} style={{ color: accent }} /> 完成
+                </>
+                : aiStatus === "error" ?
+                  <>
+                    <X size={14} style={{ color: "#ef4444" }} /> 失败
+                  </>
+                  : <>
+                    <Sparkles size={14} style={{ color: accent }} /> AI识别
+                  </>
             }
           </button>
         </div>
@@ -816,7 +823,7 @@ export default function RecordPage() {
                 <ImageIcon size={20} opacity={0.5} />
                 <span>粘贴、拖入或点击上传图片</span>
               </>
-            : <Plus size={20} opacity={0.5} />}
+              : <Plus size={20} opacity={0.5} />}
           </div>
         </div>
 
@@ -858,8 +865,8 @@ export default function RecordPage() {
           borderTop: "1px solid var(--border-color)",
           background:
             settings.win12Experimental ? "rgba(255,255,255,0.02)"
-            : isFocused ? "var(--bg-active)"
-            : "var(--bg-inactive)",
+              : isFocused ? "var(--bg-active)"
+                : "var(--bg-inactive)",
           display: "flex",
           justifyContent: "space-between", // Maybe add more controls later?
           alignItems: "center",
