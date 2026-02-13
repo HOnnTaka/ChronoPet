@@ -106,6 +106,8 @@ export default function DashboardPage() {
     onConfirm: null,
   });
   const [isDark, setIsDark] = useState(true);
+  const [downloadProgress, setDownloadProgress] = useState(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const showCustomAlert = useCallback((title, message, options = {}) => {
     setDialog({
@@ -312,10 +314,25 @@ export default function DashboardPage() {
       cleanups.push(
         window.electronAPI.receive("ai-chat-response", (result) => {
           setIsTyping(false);
-          if (!result.success) {
-            setChatMessages((prev) => [...prev, { sender: "bot", text: "错误: " + result.error, isError: true }]);
+          if (result && !result.success) {
+            setChatMessages((prev) => [...prev, { sender: "bot", text: "错误: " + (result.error || "未知错误"), isError: true }]);
           }
         }),
+      );
+
+      cleanups.push(
+        window.electronAPI.receive('download-progress', (data) => {
+          if (data.status === 'downloading') {
+            setDownloadProgress(data.progress);
+          } else if (data.status === 'completed') {
+            setDownloadProgress(100);
+            setIsUpdating(false);
+          } else if (data.status === 'error') {
+            setDownloadProgress(null);
+            setIsUpdating(false);
+            showCustomAlert("下载失败", data.error || "下载过程中出现错误");
+          }
+        })
       );
     }
 
@@ -746,9 +763,11 @@ export default function DashboardPage() {
     handleDeleteTag(index);
   };
 
+  const isAnyModalOpen = Boolean(editingTag || editingRecord || galleryState.open || dialog.open);
+
   return (
     <div
-      className={`win-container ${isFocused ? "" : "inactive"} ${settings.win12Experimental ? "liquid-ui" : ""}`}
+      className={`win-container ${(isFocused && !isAnyModalOpen) ? "" : "inactive"} ${settings.win12Experimental ? "liquid-ui" : ""}`}
       style={{ height: "100vh", display: "flex", flexDirection: "column" }}
     >
       <div
@@ -1103,6 +1122,28 @@ export default function DashboardPage() {
                   <div id="app-version-label" style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
                     当前版本: {window.electronAPI ? `v${pkg.version}` : "Unknown"}
                   </div>
+                  {isUpdating && (
+                    <div style={{ marginTop: 12, width: 200 }}>
+                      <div style={{ fontSize: "0.75rem", marginBottom: 6, display: "flex", justifyContent: "space-between", color: "var(--accent)" }}>
+                        <span style={{ fontWeight: 600 }}>正在下载更新...</span>
+                        <span>{downloadProgress}%</span>
+                      </div>
+                      <div style={{ height: 6, background: "var(--border-color)", borderRadius: 3, overflow: "hidden", border: "1px solid var(--border-color)" }}>
+                        <div
+                          style={{
+                            height: "100%",
+                            background: "var(--accent)",
+                            width: `${downloadProgress}%`,
+                            transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                            boxShadow: "0 0 10px color-mix(in srgb, var(--accent), transparent 50%)"
+                          }}
+                        />
+                      </div>
+                      <div style={{ fontSize: "0.7rem", marginTop: 4, color: "var(--text-secondary)", opacity: 0.8 }}>
+                        {downloadProgress === 100 ? "准备安装，请稍候..." : "请勿关闭软件"}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <button
                   className="btn"
@@ -1123,13 +1164,23 @@ export default function DashboardPage() {
 
                         if (res.success) {
                           if (res.updateAvailable) {
+                            const hasExe = !!res.exeUrl;
                             showCustomAlert(
                               "发现新版本",
-                              `最新版本: ${res.latestTag}\n\n更新日志:\n${res.releaseNotes || "暂无说明"}\n\n是否前往 GitHub 下载？`,
+                              `最新版本: ${res.latestTag}\n\n${hasExe ? "是否现在开始软件内更新？" : "建议前往 GitHub 下载最新版。"}`,
                               {
                                 showCancel: true,
                                 onConfirm: () => {
-                                  if (window.electronAPI) window.electronAPI.send("open-external", res.downloadUrl);
+                                  if (hasExe) {
+                                    setIsUpdating(true);
+                                    setDownloadProgress(0);
+                                    window.electronAPI.send("start-download-update", {
+                                      url: res.exeUrl,
+                                      fileName: `ChronoPet-Setup-${res.latestTag}.exe`
+                                    });
+                                  } else {
+                                    if (window.electronAPI) window.electronAPI.send("open-external", res.downloadUrl);
+                                  }
                                 },
                               },
                             );

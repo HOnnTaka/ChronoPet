@@ -1,5 +1,6 @@
 import React from "react";
 
+// eslint-disable-next-line no-unused-vars
 const TabButton = ({ id, label, icon: Icon, activeId, onClick }) => (
   <button
     onClick={() => onClick(id)}

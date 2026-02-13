@@ -12,7 +12,7 @@ const FilterButton = ({ id, label, activeId, hasDateRange, onClick }) => (
           borderColor: "transparent",
           userSelect: "none",
         }
-      : { userSelect: "none" }
+        : { userSelect: "none" }
     }
   >
     {label}

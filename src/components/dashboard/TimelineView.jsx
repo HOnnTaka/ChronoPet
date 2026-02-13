@@ -308,7 +308,7 @@ export default function TimelineView({
   return (
     <div style={{ width: "100%", maxWidth: "900px", margin: "0 auto" }}>
       {/* 筛选栏 - 两行布局 */}
-      <div className="win11-card" style={{ padding: "12px 16px", marginBottom: 16 }}>
+      <div className="win11-card timeline-filter-card" style={{ padding: "12px 16px", marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
           {/* 快捷筛选按钮 */}
           <div style={{ display: "flex", gap: 6 }}>

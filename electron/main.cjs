@@ -1462,14 +1462,7 @@ ipcMain.handle('check-for-updates', async () => {
 
 function processReleaseData(data, currentVersion) {
     const latestTag = data.tag_name;
-    const latestVersion = latestTag.replace(/^v/, '').split('-')[0]; // Remove -alpha suffix for comparison setup
-
-    // Improved Semantic Versioning Comparison for semver-ish (major.minor.patch)
-    // Note: This simple comparison ignores -alpha/-beta suffixes for correctness, 
-    // it treats 1.0.1-alpha as "1.0.1". 
-    // If current is 1.0.1, and remote is 1.0.1-alpha, we might not want to "downgrade" or notify.
-    // BUT usually releases are strictly increasing.
-    // Let's stick to numerical comparison of M.m.p
+    const latestVersion = latestTag.replace(/^v/, '').split('-')[0];
 
     const v1 = currentVersion.split('.').map(Number);
     const v2 = latestVersion.split('.').map(Number);
@@ -1482,18 +1475,71 @@ function processReleaseData(data, currentVersion) {
         if (a > b) { break; }
     }
 
-    // If strict equality, usually we don't update.
+    // Find .exe asset for Windows in-app download
+    let exeUrl = null;
+    if (data.assets && Array.isArray(data.assets)) {
+        const exeAsset = data.assets.find(a => a.name.endsWith('.exe') && !a.name.includes('blockmap'));
+        if (exeAsset) exeUrl = exeAsset.browser_download_url;
+    }
 
     return {
         success: true,
         updateAvailable,
         currentVersion,
-        latestVersion: latestTag, // Show full tag in UI
+        latestVersion: latestTag,
         latestTag,
         releaseNotes: data.body,
-        downloadUrl: data.html_url
+        downloadUrl: data.html_url,
+        exeUrl
     };
 }
+
+ipcMain.on('start-download-update', async (event, { url, fileName }) => {
+    try {
+        const fetch = (await import('node-fetch')).default;
+        const tempPath = path.join(os.tmpdir(), fileName || 'ChronoPet-Update.exe');
+
+        console.log('[Updater] Starting download:', url, 'to', tempPath);
+
+        const response = await fetch(url, {
+            headers: { 'User-Agent': 'ChronoPet-App' }
+        });
+
+        if (!response.ok) throw new Error(`Download failed: ${response.statusText}`);
+
+        const totalSize = parseInt(response.headers.get('content-length'), 10);
+        let downloadedSize = 0;
+        const fileStream = fs.createWriteStream(tempPath);
+
+        response.body.on('data', (chunk) => {
+            downloadedSize += chunk.length;
+            if (totalSize) {
+                const progress = Math.round((downloadedSize / totalSize) * 100);
+                event.reply('download-progress', { progress, status: 'downloading' });
+            }
+        });
+
+        response.body.pipe(fileStream);
+
+        fileStream.on('finish', () => {
+            console.log('[Updater] Download finished');
+            event.reply('download-progress', { progress: 100, status: 'completed', path: tempPath });
+            // Automatically trigger install after a short delay
+            setTimeout(() => {
+                shell.openPath(tempPath);
+                app.quit();
+            }, 1000);
+        });
+
+        fileStream.on('error', (err) => {
+            throw err;
+        });
+
+    } catch (e) {
+        console.error('[Updater] Download error:', e);
+        event.reply('download-progress', { status: 'error', error: e.message });
+    }
+});
 
 
 // 通用 AI 对话接口

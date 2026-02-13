@@ -373,28 +373,7 @@ export default function RecordPage() {
     if (window.electronAPI) window.electronAPI.send("input-window-moving", { isMoving: false });
   }, []);
 
-  // 自动调整窗口高度
-  useEffect(() => {
-    if (!window.electronAPI) return;
 
-    const observer = new ResizeObserver((entries) => {
-      // Prevent resize loop during drag
-      if (isDraggingRef.current) return;
-
-      for (let entry of entries) {
-        // 获取内容实际高度并发送给主进程
-        const height = entry.target.scrollHeight;
-        if (Math.abs(height - window.innerHeight) < 4) return; // Prevent micro-adjustments loop
-        window.electronAPI.send("resize-input-window", { height: height }); // Removed +2 to stop growth loop
-      }
-    });
-
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, []);
 
   useEffect(() => {
     document.addEventListener("mousemove", handleMouseMove);
@@ -514,7 +493,7 @@ export default function RecordPage() {
   return (
     <div
       ref={containerRef}
-      className={`win-container ${isFocused ? "" : "inactive"} ${settings.win12Experimental ? "liquid-ui" : ""}`}
+      className={`win-container ${(isFocused && !alertConfig) ? "" : "inactive"} ${settings.win12Experimental ? "liquid-ui" : ""}`}
     >
       <div
         onMouseDown={handleMouseDown}
@@ -710,7 +689,7 @@ export default function RecordPage() {
         </div>
 
         <div
-          className="no-drag"
+          className="no-drag screenshot-upload-area"
           style={{
             marginBottom: "12px",
             border: "1px dashed var(--border-color)",

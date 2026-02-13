@@ -204,6 +204,7 @@ const EditRecordModal = ({ editingRecord, setEditingRecord, onSave, settings, on
 
           {/* Screenshot Gallery - Same as RecordPage */}
           <div
+            className="screenshot-upload-area"
             style={{
               marginBottom: "12px",
               border: "1px dashed var(--border-color)",

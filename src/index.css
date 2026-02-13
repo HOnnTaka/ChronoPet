@@ -94,12 +94,12 @@ body {
 }
 
 :root {
-  --liquid-tint: rgba(255, 255, 255, 0.65);
+  --liquid-tint: rgba(255, 255, 255, 0.2);
   --liquid-radius: 20px;
-  --liquid-card-bg: rgba(255, 255, 255, 0.35);
-  --liquid-modal-bg: rgba(255, 255, 255, 0.45);
+  --liquid-card-bg: rgba(255, 255, 255, 0.25);
+  --liquid-modal-bg: rgba(255, 255, 255, 0.25);
   --liquid-input-bg: rgba(255, 255, 255, 0.6);
-  --liquid-btn-bg: rgba(255, 255, 255, 0.5);
+  --liquid-btn-bg: rgba(255, 255, 255, 0.25);
   --liquid-border: rgba(255, 255, 255, 0.75);
   --liquid-border-subtle: rgba(0, 0, 0, 0.08);
 }
@@ -107,12 +107,12 @@ body {
 @media (prefers-color-scheme: dark) {
   :root {
     --liquid-tint: rgba(28, 28, 28, 0.55);
-    --liquid-card-bg: rgba(255, 255, 255, 0.07);
-    --liquid-modal-bg: rgba(38, 38, 38, 0.45);
-    --liquid-input-bg: rgba(255, 255, 255, 0.08);
-    --liquid-btn-bg: rgba(255, 255, 255, 0.08);
-    --liquid-border: rgba(255, 255, 255, 0.15);
-    --liquid-border-subtle: rgba(255, 255, 255, 0.08);
+    --liquid-card-bg: rgba(0, 0, 0, 0.1);
+    --liquid-modal-bg: rgba(0, 0, 0, 0.45);
+    --liquid-input-bg: rgba(0, 0, 0, 0.08);
+    --liquid-btn-bg: rgba(0, 0, 0, 0.08);
+    --liquid-border: rgba(48, 48, 48, 0.15);
+    --liquid-border-subtle: rgba(189, 189, 189, 0.08);
   }
 }
 
@@ -125,10 +125,14 @@ body {
  * - --liquid-radius is only used for floating modals/dialogs.
  */
 .liquid-ui {
-  background: var(--liquid-tint) !important;
-  /* Remove conflicting backdrop-filter on container to allow child modals to blur correctly */
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  /* Use a sophisticated background stack: tint + noise texture */
+  background-color: var(--liquid-tint) !important;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E") !important;
+
+  /* Re-enable backdrop filter for a complex blur effect */
+  backdrop-filter: blur(30px) saturate(125%) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(125%) !important;
+
   border: none !important;
   border-radius: 0 !important;
   box-shadow: none !important;
@@ -166,6 +170,21 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
 }
 
+/* Special override for timeline filter card - extra transparent */
+.liquid-ui .timeline-filter-card {
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(8px) saturate(120%) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  box-shadow: none !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .liquid-ui .timeline-filter-card {
+    background: rgba(0, 0, 0, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.05) !important;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   .liquid-ui .win11-card {
     border: 1px solid rgba(255, 255, 255, 0.06) !important;
@@ -178,8 +197,6 @@ body {
 .liquid-ui.win11-card[style*="animation: modalScaleIn"],
 .liquid-ui.win11-card[style*="animation: alertScaleIn"] {
   background: var(--liquid-modal-bg) !important;
-  backdrop-filter: blur(60px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(60px) saturate(180%) !important;
   border: 1px solid var(--liquid-border) !important;
   border-radius: var(--liquid-radius) !important;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18), inset 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
@@ -274,18 +291,13 @@ body {
 
   .win11-card.liquid-modal,
   .win11-dialog.liquid-dialog {
-    background-color: rgba(30, 30, 30, 0.2) !important;
+    background-color: rgba(30, 30, 30, 0.45) !important;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E") !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
   }
 }
 
-/* Liquid mode: "少线多面" — remove divider lines inside modals, use surface fills */
-.liquid-modal>div[style*="borderBottom"],
-.liquid-dialog>div[style*="borderBottom"] {
-  border-bottom-color: transparent !important;
-}
 
 /* Liquid mode: inputs/buttons inside modals */
 .liquid-modal input,
@@ -294,9 +306,63 @@ body {
 .liquid-dialog input,
 .liquid-dialog textarea,
 .liquid-dialog select {
-  background: var(--liquid-input-bg) !important;
+  background: rgba(255, 255, 255, 0.2) !important;
   border: 1px solid var(--liquid-border-subtle) !important;
   border-radius: 10px !important;
+  backdrop-filter: blur(4px);
+}
+
+.liquid-ui input:focus,
+.liquid-ui textarea:focus,
+.liquid-ui select:focus,
+.liquid-modal input:focus,
+.liquid-modal textarea:focus,
+.liquid-modal select:focus,
+.liquid-dialog input:focus,
+.liquid-dialog textarea:focus,
+.liquid-dialog select:focus {
+  background: rgba(255, 255, 255, 0.25) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent) !important;
+}
+
+.liquid-ui .screenshot-upload-area {
+  background: var(--liquid-card-bg) !important;
+  backdrop-filter: none;
+}
+
+.liquid-modal .screenshot-upload-area {
+  background: var(--liquid-card-bg) !important;
+  backdrop-filter: blur(4px);
+}
+
+@media (prefers-color-scheme: dark) {
+
+  .liquid-modal input,
+  .liquid-modal textarea,
+  .liquid-modal select,
+  .liquid-dialog input,
+  .liquid-dialog textarea,
+  .liquid-dialog select {
+    background: var(--liquid-input-bg) !important;
+  }
+
+  .liquid-ui input:focus,
+  .liquid-ui textarea:focus,
+  .liquid-ui select:focus,
+  .liquid-modal input:focus,
+  .liquid-modal textarea:focus,
+  .liquid-modal select:focus,
+  .liquid-dialog input:focus,
+  .liquid-dialog textarea:focus,
+  .liquid-dialog select:focus {
+    background: rgba(0, 0, 0, 0.25) !important;
+  }
+
+  .liquid-modal .screenshot-upload-area,
+  .liquid-ui .screenshot-upload-area {
+    background: var(--liquid-card-bg) !important;
+  }
 }
 
 .liquid-modal .btn,
@@ -611,7 +677,7 @@ a:hover {
   flex: 1;
   border: none !important;
   background: transparent !important;
-  padding: 8px 0 !important;
+  padding: 8px !important;
   margin: 0 !important;
   box-shadow: none !important;
   outline: none !important;
@@ -670,7 +736,16 @@ a:hover {
 
 .liquid-ui .chat-input {
   color: #000 !important;
-  /* Ensure readable on light blur */
+  flex: 1;
+  border: none !important;
+  background: transparent !important;
+  padding: 8px !important;
+  margin-right: 10px !important;
+  box-shadow: none !important;
+  outline: none !important;
+  color: var(--text-primary) !important;
+  font-family: inherit;
+  font-size: 0.95rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -753,7 +828,7 @@ a:hover {
 .liquid-ui .btn.primary {
   background: var(--accent) !important;
   color: white !important;
-  border: none !important;
+  border: 1px solid transparent !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
