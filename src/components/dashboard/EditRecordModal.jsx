@@ -66,15 +66,10 @@ const EditRecordModal = ({ editingRecord, setEditingRecord, onSave, settings, on
     >
       {/* Dimmer Background Sibling */}
       <div
+        className="modal-overlay-mask"
         style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: settings.win12Experimental ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.4)",
-          pointerEvents: "none", // Let clicks pass through to container
-          zIndex: -1
+          background: settings?.win12Experimental ? "rgba(0,0,0,0.15)" : "rgba(0,0,0,0.4)",
+          animation: "maskFadeIn 0.3s ease-out",
         }}
       />
       <div

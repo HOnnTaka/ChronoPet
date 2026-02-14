@@ -607,8 +607,8 @@ export default function RecordPage() {
                 style={{
                   fontSize: "0.76rem",
                   padding: "3px 10px",
-                  borderRadius: "6px",
-                  background: isSelected ? baseColor : "var(--bg-active)",
+                  borderRadius: settings.win12Experimental ? "10px" : "6px",
+                  background: isSelected ? baseColor : (settings.win12Experimental ? "var(--liquid-btn-bg)" : "var(--bg-active)"),
                   color: isSelected ? "#fff" : "var(--text-secondary)",
                   cursor: "pointer",
                   transition: "all 0.2s",
@@ -651,7 +651,13 @@ export default function RecordPage() {
         </div>
 
         <div style={{ display: "flex", gap: "8px", marginBottom: "12px", alignItems: "center" }} className="no-drag">
-          <button className="btn" onClick={handleScreenshot}>
+          <button
+            className="btn"
+            onClick={handleScreenshot}
+            style={{
+              borderRadius: settings.win12Experimental ? "10px" : "6px",
+            }}
+          >
             <Camera size={14} style={{ color: accent }} /> 截图
           </button>
           <button
@@ -659,10 +665,11 @@ export default function RecordPage() {
             onClick={handleAI}
             disabled={aiLoading}
             style={{
+              borderRadius: settings.win12Experimental ? "10px" : "6px",
               background:
                 aiStatus === "success" ? `color-mix(in srgb, ${accent} 20%, transparent)`
                   : aiStatus === "error" ? "rgba(239, 68, 68, 0.2)"
-                    : undefined,
+                    : undefined, // Let CSS handle the idle state
               borderColor:
                 aiStatus === "success" ? accent
                   : aiStatus === "error" ? "rgba(239, 68, 68, 0.5)"
@@ -693,10 +700,10 @@ export default function RecordPage() {
           style={{
             marginBottom: "12px",
             border: "1px dashed var(--border-color)",
-            borderRadius: "6px",
+            borderRadius: settings.win12Experimental ? "10px" : "6px",
             padding: "10px",
             minHeight: "80px",
-            background: "var(--input-bg)",
+            background: settings.win12Experimental ? "var(--liquid-input-bg)" : "var(--input-bg)",
             display: "flex",
             flexWrap: "wrap",
             gap: "8px",
@@ -843,7 +850,7 @@ export default function RecordPage() {
           padding: "12px 16px",
           borderTop: "1px solid var(--border-color)",
           background:
-            settings.win12Experimental ? "rgba(255,255,255,0.02)"
+            settings.win12Experimental ? "var(--liquid-btn-bg)"
               : isFocused ? "var(--bg-active)"
                 : "var(--bg-inactive)",
           display: "flex",
@@ -857,9 +864,9 @@ export default function RecordPage() {
           <div
             style={{
               display: "flex",
-              background: "rgba(255,255,255,0.03)",
+              background: settings.win12Experimental ? "var(--liquid-input-bg)" : "rgba(255,255,255,0.03)",
               padding: "2px",
-              borderRadius: "8px 0px 0px 8px",
+              borderRadius: settings.win12Experimental ? "10px 0px 0px 10px" : "8px 0px 0px 8px",
               border: "1px solid var(--border-color)",
               borderRight: "none",
               height: "32px",
@@ -870,7 +877,7 @@ export default function RecordPage() {
               className="no-drag"
               style={{
                 padding: "4px 10px",
-                borderRadius: "6px",
+                borderRadius: settings.win12Experimental ? "8px" : "6px",
                 border: "none",
                 background: timingMode === "retro" ? accent : "transparent",
                 color: timingMode === "retro" ? "#fff" : "var(--text-secondary)",
@@ -887,7 +894,7 @@ export default function RecordPage() {
               className="no-drag"
               style={{
                 padding: "4px 10px",
-                borderRadius: "6px",
+                borderRadius: settings.win12Experimental ? "8px" : "6px",
                 border: "none",
                 background: timingMode === "timer" ? accent : "transparent",
                 color: timingMode === "timer" ? "#fff" : "var(--text-secondary)",
@@ -906,9 +913,9 @@ export default function RecordPage() {
               display: "flex",
               alignItems: "center",
               gap: 2,
-              background: "rgba(255,255,255,0.03)",
+              background: settings.win12Experimental ? "var(--liquid-input-bg)" : "rgba(255,255,255,0.03)",
               padding: "0 2px 0 10px",
-              borderRadius: "0 6px 6px 0",
+              borderRadius: settings.win12Experimental ? "0 10px 10px 0" : "0 6px 6px 0",
               border: "1px solid var(--border-color)",
               borderLeft: "none",
               height: "32px",

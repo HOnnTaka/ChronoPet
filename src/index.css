@@ -82,36 +82,84 @@ body {
   flex-direction: column;
   overflow: hidden;
   box-sizing: border-box;
-  transition: all 0.4s cubic-bezier(0.1, 0.9, 0.2, 1);
+  /* 统一主窗口过渡时间，确保无论是 Liquid 还是普通模式下失焦变白都有平滑过程 */
+  transition: background var(--liquid-trans-base) cubic-bezier(0.1, 0.9, 0.2, 1),
+    opacity var(--liquid-trans-base) cubic-bezier(0.1, 0.9, 0.2, 1),
+    backdrop-filter var(--liquid-trans-base) cubic-bezier(0.1, 0.9, 0.2, 1);
   box-shadow: 0 0 0 1px inset rgba(255, 255, 255, 0.1);
   /* 模拟 Win11 内部反光边 */
 }
 
 .win-container.inactive {
   background: var(--bg-inactive) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  /* 保持滤镜一致，只改变透明度，防止 Chromium 在切换滤镜时产生闪烁/黑屏 */
+  opacity: var(--liquid-inactive-opacity);
+  backdrop-filter: blur(var(--liquid-bg-blur)) saturate(var(--liquid-bg-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--liquid-bg-blur)) saturate(var(--liquid-bg-saturate)) !important;
 }
 
+/* 遮罩层核心样式 */
+.modal-overlay-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--liquid-mask-color);
+  backdrop-filter: blur(var(--liquid-mask-blur));
+  -webkit-backdrop-filter: blur(var(--liquid-mask-blur));
+  z-index: -1;
+  pointer-events: none;
+
+  /* 统一遮罩消失时间 */
+  transition: opacity var(--liquid-mask-trans) cubic-bezier(0.1, 0.9, 0.2, 1),
+    backdrop-filter var(--liquid-mask-trans) ease;
+  opacity: 1;
+}
+
+/* 当弹窗正在关闭时（如果组件支持状态），或者利用动画控制 */
+@keyframes maskFadeIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+
+  to {
+    opacity: 1;
+    backdrop-filter: blur(var(--liquid-mask-blur));
+  }
+}
+
+
 :root {
-  --liquid-tint: rgba(255, 255, 255, 0.2);
+  --liquid-tint: rgba(255, 255, 255, 0.5);
   --liquid-radius: 20px;
-  --liquid-card-bg: rgba(255, 255, 255, 0.25);
-  --liquid-modal-bg: rgba(255, 255, 255, 0.25);
-  --liquid-input-bg: rgba(255, 255, 255, 0.6);
+  --liquid-card-bg: rgba(255, 255, 255, 0.15);
+  --liquid-modal-bg: rgba(255, 255, 255, 0.45);
+  --liquid-input-bg: rgba(255, 255, 255, 0.25);
   --liquid-btn-bg: rgba(255, 255, 255, 0.25);
-  --liquid-border: rgba(255, 255, 255, 0.75);
+  --liquid-border: rgba(255, 255, 255, 0.2);
   --liquid-border-subtle: rgba(0, 0, 0, 0.08);
+
+  /* New Dynamic Variables */
+  --liquid-bg-blur: 6px;
+  --liquid-bg-saturate: 125%;
+  --liquid-mask-blur: 6px;
+  --liquid-mask-color: rgba(0, 0, 0, 0.2);
+  --liquid-inactive-opacity: 0.8;
+  --liquid-btn-blur: 0px;
+  --liquid-trans-base: 0.6s;
+  --liquid-mask-trans: 0.6s;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --liquid-tint: rgba(28, 28, 28, 0.55);
-    --liquid-card-bg: rgba(0, 0, 0, 0.1);
+    --liquid-tint: rgba(28, 28, 28, 0.5);
+    --liquid-card-bg: rgba(0, 0, 0, 0.15);
     --liquid-modal-bg: rgba(0, 0, 0, 0.45);
     --liquid-input-bg: rgba(0, 0, 0, 0.08);
     --liquid-btn-bg: rgba(0, 0, 0, 0.08);
-    --liquid-border: rgba(48, 48, 48, 0.15);
+    --liquid-border: rgba(48, 48, 48, 0.5);
     --liquid-border-subtle: rgba(189, 189, 189, 0.08);
   }
 }
@@ -130,8 +178,8 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E") !important;
 
   /* Re-enable backdrop filter for a complex blur effect */
-  backdrop-filter: blur(30px) saturate(125%) !important;
-  -webkit-backdrop-filter: blur(30px) saturate(125%) !important;
+  backdrop-filter: blur(var(--liquid-bg-blur)) saturate(var(--liquid-bg-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--liquid-bg-blur)) saturate(var(--liquid-bg-saturate)) !important;
 
   border: none !important;
   border-radius: 0 !important;
@@ -153,7 +201,12 @@ body {
 
 /* Smooth transitions when toggling Liquid UI mode */
 .win-container {
-  transition: background 0.4s ease, border 0.3s ease, box-shadow 0.4s ease;
+  /* 使用统一的 transition 变量 */
+  transition: background var(--liquid-trans-base) cubic-bezier(0.4, 0, 0.2, 1),
+    opacity var(--liquid-trans-base) ease,
+    border 0.3s ease,
+    box-shadow var(--liquid-trans-base) ease,
+    backdrop-filter var(--liquid-trans-base) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .win-container .win11-card {
@@ -234,7 +287,7 @@ body {
   border-radius: 10px !important;
   background: var(--liquid-btn-bg) !important;
   border: 1px solid var(--liquid-border-subtle) !important;
-  backdrop-filter: blur(8px) !important;
+  backdrop-filter: blur(var(--liquid-btn-blur)) !important;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -273,11 +326,12 @@ body {
 .win11-card.liquid-modal,
 .win11-dialog.liquid-dialog {
   /* Fallback: use noise texture to simulate frosted glass if blur fails */
-  background-color: rgba(255, 255, 255, 0.1) !important;
+  background-color: var(--liquid-modal-bg) !important;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E") !important;
 
-  backdrop-filter: blur(24px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(200%) !important;
+  /* 移除窗口本身的模糊，依靠遮罩层的模糊 */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border: 1px solid rgba(255, 255, 255, 0.2) !important;
   border-radius: var(--liquid-radius) !important;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.2) !important;
@@ -291,7 +345,7 @@ body {
 
   .win11-card.liquid-modal,
   .win11-dialog.liquid-dialog {
-    background-color: rgba(30, 30, 30, 0.45) !important;
+    background-color: var(--liquid-modal-bg) !important;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E") !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
@@ -299,10 +353,16 @@ body {
 }
 
 
-/* Liquid mode: inputs/buttons inside modals */
-.liquid-modal input,
-.liquid-modal textarea,
-.liquid-modal select,
+/* Liquid mode: inputs/buttons/areas inside modals and pages */
+.liquid-ui input,
+.liquid-ui textarea,
+.liquid-ui select,
+.liquid-ui .screenshot-upload-area {
+  background: var(--liquid-input-bg) !important;
+  border-color: var(--liquid-border-subtle) !important;
+  transition: all 0.2s ease;
+}
+
 .liquid-dialog input,
 .liquid-dialog textarea,
 .liquid-dialog select {

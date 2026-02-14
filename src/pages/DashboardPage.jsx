@@ -471,6 +471,10 @@ export default function DashboardPage() {
           delete recordToSave.isNew;
           window.electronAPI.send("save-record", recordToSave);
         } else {
+          // 乐观更新本地状态，确保截图同步即时反映
+          setRecords((prev) =>
+            prev.map((r) => r.id === editingRecord.id ? { ...editingRecord } : r)
+          );
           window.electronAPI.send("update-record", editingRecord);
         }
         setEditingRecord(null);

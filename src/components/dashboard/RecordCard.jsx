@@ -173,7 +173,7 @@ const RecordCard = React.memo(
               >
                 {loadingAi ?
                   <Loader2 size={15} className="spin" />
-                : <Sparkles size={15} />}
+                  : <Sparkles size={15} />}
               </button>
             )}
 
@@ -276,6 +276,7 @@ const RecordCard = React.memo(
       prev.record.desc === next.record.desc &&
       prev.loadingAi === next.loadingAi &&
       JSON.stringify(prev.record.tags) === JSON.stringify(next.record.tags) &&
+      JSON.stringify(prev.record.screenshots) === JSON.stringify(next.record.screenshots) &&
       JSON.stringify(prev.settings.tags) === JSON.stringify(next.settings.tags)
     );
   },

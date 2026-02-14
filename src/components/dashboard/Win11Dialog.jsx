@@ -33,12 +33,19 @@ const Win11Dialog = ({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: settings.win12Experimental ? "transparent" : "rgba(0,0,0,0.4)",
-        backdropFilter: settings.win12Experimental ? "none" : "blur(4px)",
-        animation: "fadeIn 0.2s ease-out",
+        background: "transparent",
+        pointerEvents: "auto",
       }}
       onClick={onClose}
     >
+      {/* Dimmer Background Mask */}
+      <div
+        className="modal-overlay-mask"
+        style={{
+          background: settings.win12Experimental ? "rgba(0,0,0,0.15)" : "rgba(0,0,0,0.4)",
+          animation: "maskFadeIn 0.3s ease-out",
+        }}
+      />
       <style>{`
         @keyframes dialogIn {
           from { opacity: 0; transform: scale(0.95) translateY(10px); }
